@@ -42,7 +42,17 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
     def test_artifact_upload_excludes_electron_unpack_directories(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        for extension in ("*.dmg", "*.zip", "*.exe", "*.AppImage", "*.deb", "*.yml", "*.blockmap"):
+        for extension in (
+            "*.dmg",
+            "*.zip",
+            "*.exe",
+            "*.AppImage",
+            "*.deb",
+            "latest.yml",
+            "latest-mac.yml",
+            "latest-linux.yml",
+            "*.blockmap",
+        ):
             self.assertIn(f"desktop/release/{extension}", workflow)
         self.assertNotIn("desktop/release/*\n", workflow)
         for label in (
