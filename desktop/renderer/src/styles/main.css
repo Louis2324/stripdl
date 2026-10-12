@@ -508,6 +508,14 @@ select {
   flex: 0 0 auto;
 }
 
+.about-update {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
 .empty-state p {
   color: var(--text-secondary);
 }

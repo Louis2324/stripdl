@@ -6,6 +6,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("strip", {
   app: {
     version: () => ipcRenderer.invoke("app:version"),
+    checkForUpdates: () => ipcRenderer.invoke("app:update:check"),
+    onUpdateStatus: (cb) => {
+      const listener = (_, data) => cb(data);
+      ipcRenderer.on("app:update-status", listener);
+      return () => ipcRenderer.removeListener("app:update-status", listener);
+    },
   },
 
   config: {

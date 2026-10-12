@@ -178,6 +178,7 @@ jobs:
           npx electron-builder
           --${{ matrix.builder }}
           --${{ matrix.arch }}
+          --publish never
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -187,9 +188,12 @@ jobs:
           path: |
             release-cli/*
             desktop/release/*.dmg
+            desktop/release/*.zip
             desktop/release/*.exe
             desktop/release/*.AppImage
             desktop/release/*.deb
+            desktop/release/*.yml
+            desktop/release/*.blockmap
 
   publish:
     name: Publish GitHub Release
@@ -226,7 +230,10 @@ jobs:
         with:
           pattern: strip-*
           path: release
-          merge-multiple: true
+          merge-multiple: false
+
+      - name: Prepare release artifacts
+        run: python .github/scripts/prepare_release_artifacts.py --root release
 
       - name: Create checksums
         run: python .github/scripts/create_checksums.py --root release --output release/SHA256SUMS.txt

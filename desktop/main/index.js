@@ -18,12 +18,14 @@ const path = require("path");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
 const { spawn } = require("child_process");
+const { autoUpdater } = require("electron-updater");
 const { buildDownloadConfigArgs } = require("./configKeys");
 const { startScheduler } = require("./scheduler");
 const { assertLibraryPath, assertSeriesPath, assertChapterPath } = require("./pathSafety.cjs");
 const { createLineDecoder, summarizeDownloadFailure } = require("./downloadOutput.cjs");
 const { createProgressPersistence } = require("./progressPersistence.cjs");
 const { scanLibrary } = require("./libraryScanner.cjs");
+const { setupAutoUpdater } = require("./updater.cjs");
 
 const isDev =
   process.argv.includes("--dev") || !!process.env.ELECTRON_RENDERER_URL;
@@ -150,6 +152,7 @@ let allowQuitAfterProgressFlush = false;
 // ──────────────────────────────────────────────────────────────────
 
 let mainWindow = null;
+let updateController = null;
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -186,6 +189,12 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
   initScheduler();
+  updateController = setupAutoUpdater({
+    app,
+    autoUpdater,
+    dialog,
+    getWindow: () => mainWindow,
+  });
 });
 
 app.on("window-all-closed", () => {
@@ -224,6 +233,13 @@ function getStripCliPath() {
 // ──────────────────────────────────────────────────────────────────
 
 ipcMain.handle("app:version", () => app.getVersion());
+
+ipcMain.handle("app:update:check", () =>
+  updateController?.checkForUpdates() ?? {
+    state: "unavailable",
+    message: "Updates are not ready yet.",
+  },
+);
 
 ipcMain.handle("config:get", () => appConfig);
 
