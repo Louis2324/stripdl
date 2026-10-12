@@ -62,10 +62,44 @@ function BoolSetting({ label, desc, checked, onChange }) {
 export default function SettingsView() {
   const { config, updateConfig } = useConfig();
   const [appVersion, setAppVersion] = useState("—");
+  const [updateStatus, setUpdateStatus] = useState(null);
 
   useEffect(() => {
     window.strip.app.version().then(setAppVersion).catch(() => setAppVersion("—"));
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.strip.app.onUpdateStatus?.(setUpdateStatus);
+    return () => unsubscribe?.();
+  }, []);
+
+  async function checkForUpdates() {
+    setUpdateStatus({ state: "checking" });
+    try {
+      const result = await window.strip.app.checkForUpdates();
+      if (result?.state) setUpdateStatus(result);
+    } catch {
+      setUpdateStatus({ state: "error" });
+    }
+  }
+
+  function updateStatusLabel() {
+    if (!updateStatus) return null;
+    if (updateStatus.state === "checking") return "Checking for updates…";
+    if (updateStatus.state === "available") {
+      return `Downloading v${updateStatus.version}…`;
+    }
+    if (updateStatus.state === "downloading") {
+      return `Downloading update… ${updateStatus.percent}%`;
+    }
+    if (updateStatus.state === "downloaded") {
+      return "Update ready; restart Strip to install it.";
+    }
+    if (updateStatus.state === "not-available") return "Strip is up to date.";
+    if (updateStatus.state === "unavailable") return updateStatus.message;
+    if (updateStatus.state === "error") return "Update check failed.";
+    return null;
+  }
 
   if (!config) {
     return (
@@ -217,6 +251,16 @@ export default function SettingsView() {
           <div className="about-brand">
             <img src="strip-logo.png" alt="Strip" className="about-logo" />
             <p className="muted">strip v{appVersion} — webtoon downloader &amp; reader</p>
+          </div>
+          <div className="about-update">
+            <button className="btn btn-secondary" onClick={checkForUpdates}>
+              Check for updates
+            </button>
+            {updateStatusLabel() && (
+              <span className="muted" role="status" aria-live="polite">
+                {updateStatusLabel()}
+              </span>
+            )}
           </div>
         </div>
       </div>

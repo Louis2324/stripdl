@@ -23,6 +23,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("actions/upload-artifact@v4", workflow)
         self.assertIn("SHA256SUMS.txt", workflow)
         self.assertIn("create_checksums.py", workflow)
+        self.assertIn("prepare_release_artifacts.py", workflow)
+        self.assertIn("merge-multiple: false", workflow)
+        self.assertIn("--publish never", workflow)
         self.assertIn("find release -type f -print0", workflow)
         self.assertNotIn("sha256sum * > SHA256SUMS.txt", workflow)
         self.assertIn("gh release create", workflow)
@@ -39,7 +42,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
     def test_artifact_upload_excludes_electron_unpack_directories(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        for extension in ("*.dmg", "*.exe", "*.AppImage", "*.deb"):
+        for extension in ("*.dmg", "*.zip", "*.exe", "*.AppImage", "*.deb", "*.yml", "*.blockmap"):
             self.assertIn(f"desktop/release/{extension}", workflow)
         self.assertNotIn("desktop/release/*\n", workflow)
         for label in (
@@ -82,11 +85,15 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertTrue(package["author"].get("email"))
         self.assertTrue(package.get("homepage"))
         self.assertTrue(build["linux"].get("maintainer"))
+        self.assertEqual(build["publish"]["provider"], "github")
+        self.assertEqual(build["publish"]["owner"], "ZLouisMiguel")
+        self.assertEqual(build["publish"]["repo"], "stripdl")
+        self.assertEqual(build["mac"]["target"], ["dmg", "zip"])
 
     def test_tag_validator_accepts_matching_tag_and_rejects_mismatch(self):
         script = ROOT / ".github" / "scripts" / "verify_release_tag.py"
         matching = subprocess.run(
-            [sys.executable, str(script), "--tag", "v0.5.0"],
+            [sys.executable, str(script), "--tag", "v0.5.1"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -111,7 +118,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
                     sys.executable,
                     str(script),
                     "--version",
-                    "0.5.0",
+                    "0.5.1",
                     "--platform",
                     "linux",
                     "--arch",
@@ -127,7 +134,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 env={**os.environ, "PYTHONUTF8": "1"},
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertTrue((output / "stripdl-0.5.0-linux-arm64.tar.gz").is_file())
+            self.assertTrue((output / "stripdl-0.5.1-linux-arm64.tar.gz").is_file())
 
     def test_checksum_script_handles_nested_release_artifacts(self):
         script = ROOT / ".github" / "scripts" / "create_checksums.py"
@@ -151,6 +158,54 @@ class ReleaseWorkflowTests(unittest.TestCase):
             self.assertIn("desktop/strip-win.exe", checksums)
             self.assertIn("release-cli/stripdl-linux.tar.gz", checksums)
             self.assertNotIn("SHA256SUMS.txt", checksums)
+
+    def test_release_artifact_preparer_flattens_and_merges_architecture_outputs(self):
+        script = ROOT / ".github" / "scripts" / "prepare_release_artifacts.py"
+        with tempfile.TemporaryDirectory() as directory:
+            release = Path(directory) / "release"
+            x64 = release / "strip-windows-x64" / "desktop" / "release"
+            arm64 = release / "strip-windows-arm64" / "desktop" / "release"
+            x64.mkdir(parents=True)
+            arm64.mkdir(parents=True)
+            (x64 / "Strip-0.5.1-windows-x64.exe").write_bytes(b"x64")
+            (arm64 / "Strip-0.5.1-windows-arm64.exe").write_bytes(b"arm64")
+            for directory_path, artifact in ((x64, "x64"), (arm64, "arm64")):
+                (directory_path / "latest.yml").write_text(
+                    json.dumps(
+                        {
+                            "version": "0.5.1",
+                            "files": [
+                                {
+                                    "url": f"Strip-0.5.1-windows-{artifact}.exe",
+                                    "sha512": artifact,
+                                    "size": 3 if artifact == "x64" else 5,
+                                }
+                            ],
+                            "releaseDate": "2026-10-12T00:00:00.000Z",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            result = subprocess.run(
+                [sys.executable, str(script), "--root", str(release)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((release / "Strip-0.5.1-windows-x64.exe").is_file())
+            self.assertTrue((release / "Strip-0.5.1-windows-arm64.exe").is_file())
+            manifest = json.loads((release / "latest.yml").read_text(encoding="utf-8"))
+            self.assertEqual(
+                {entry["url"] for entry in manifest["files"]},
+                {
+                    "Strip-0.5.1-windows-x64.exe",
+                    "Strip-0.5.1-windows-arm64.exe",
+                },
+            )
+            self.assertTrue(all(path.parent == release for path in release.iterdir()))
 
 
 if __name__ == "__main__":

@@ -4,9 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+- **feat:** Check for packaged desktop updates at startup and periodically, download them in the background, and offer a restart to install.
+- **ci:** Publish electron-builder update metadata and macOS ZIP payloads, merge architecture manifests, and include updater artifacts in release checksums.
 
 ## v0.5.0
+
+- **fix:** Load the bundled Strip logo from package-relative URLs in the Electron reader, including the sidebar, About view, and favicon.
+- **feat:** Show explicit loading states and non-blocking warnings while library data, reader pages, and downloads are being prepared.
+- **fix:** Preserve the reader position across zoom changes and refine reader zoom-lock and download-tray controls.
+- **fix:** Persist core metadata as UTF-8, tolerate unreadable library metadata, and improve CLI output and failure reporting on Unicode-constrained terminals.
+- **fix:** Persist failed-download details for later recovery without masking the original download error.
+- **fix:** Harden cross-platform release packaging for nested artifacts, Linux ARM64 CLI builds, checksums, and automated changelog updates.
 
 - **fix:** Load the bundled Strip logo from package-relative URLs in the Electron reader, including the sidebar, About view, and favicon.
 - **feat:** Show explicit loading states and non-blocking warnings while library data, reader pages, and downloads are being prepared.
