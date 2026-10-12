@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+## v0.5.0
+
 - **fix:** Load the bundled Strip logo from package-relative URLs in the Electron reader, including the sidebar, About view, and favicon.
 - **feat:** Show explicit loading states and non-blocking warnings while library data, reader pages, and downloads are being prepared.
 - **fix:** Preserve the reader position across zoom changes and refine reader zoom-lock and download-tray controls.
