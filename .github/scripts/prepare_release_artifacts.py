@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
 from pathlib import Path
+
+import yaml
 
 
 MANIFEST_NAMES = {"latest.yml", "latest-mac.yml", "latest-linux.yml"}
@@ -14,7 +15,7 @@ MANIFEST_NAMES = {"latest.yml", "latest-mac.yml", "latest-linux.yml"}
 def merge_manifests(manifests: list[Path], destination: Path) -> None:
     """Merge per-architecture electron-builder manifests into one manifest."""
 
-    documents = [json.loads(path.read_text(encoding="utf-8")) for path in manifests]
+    documents = [yaml.safe_load(path.read_text(encoding="utf-8")) for path in manifests]
     versions = {document.get("version") for document in documents}
     if len(versions) != 1:
         raise ValueError(f"manifest versions differ for {destination.name}")
@@ -40,7 +41,7 @@ def merge_manifests(manifests: list[Path], destination: Path) -> None:
             merged["sha512"] = files[0]["sha512"]
 
     destination.write_text(
-        json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        yaml.safe_dump(merged, sort_keys=False, allow_unicode=True), encoding="utf-8"
     )
 
 

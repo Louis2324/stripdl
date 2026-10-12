@@ -207,14 +207,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue((release / "Strip-0.5.1-windows-x64.exe").is_file())
             self.assertTrue((release / "Strip-0.5.1-windows-arm64.exe").is_file())
-            manifest = json.loads((release / "latest.yml").read_text(encoding="utf-8"))
-            self.assertEqual(
-                {entry["url"] for entry in manifest["files"]},
-                {
-                    "Strip-0.5.1-windows-x64.exe",
-                    "Strip-0.5.1-windows-arm64.exe",
-                },
-            )
+            manifest = (release / "latest.yml").read_text(encoding="utf-8")
+            self.assertIn("version: 0.5.1", manifest)
+            self.assertIn("url: Strip-0.5.1-windows-x64.exe", manifest)
+            self.assertIn("url: Strip-0.5.1-windows-arm64.exe", manifest)
             self.assertTrue(all(path.parent == release for path in release.iterdir()))
 
 
