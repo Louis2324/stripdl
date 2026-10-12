@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class ReleaseVersionTests(unittest.TestCase):
     def test_all_version_surfaces_use_release_version(self):
-        expected = "0.5.0"
+        expected = "0.5.1"
         self.assertEqual((ROOT / "VERSION").read_text(encoding="utf-8").strip(), expected)
 
         runtime = (ROOT / "core" / "strip" / "__init__.py").read_text(encoding="utf-8")

@@ -93,7 +93,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
     def test_tag_validator_accepts_matching_tag_and_rejects_mismatch(self):
         script = ROOT / ".github" / "scripts" / "verify_release_tag.py"
         matching = subprocess.run(
-            [sys.executable, str(script), "--tag", "v0.5.0"],
+            [sys.executable, str(script), "--tag", "v0.5.1"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -118,7 +118,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
                     sys.executable,
                     str(script),
                     "--version",
-                    "0.5.0",
+                    "0.5.1",
                     "--platform",
                     "linux",
                     "--arch",
@@ -134,7 +134,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 env={**os.environ, "PYTHONUTF8": "1"},
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertTrue((output / "stripdl-0.5.0-linux-arm64.tar.gz").is_file())
+            self.assertTrue((output / "stripdl-0.5.1-linux-arm64.tar.gz").is_file())
 
     def test_checksum_script_handles_nested_release_artifacts(self):
         script = ROOT / ".github" / "scripts" / "create_checksums.py"

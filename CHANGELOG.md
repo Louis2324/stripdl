@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **feat:** Check for packaged desktop updates at startup and periodically, download them in the background, and offer a restart to install.
+- **ci:** Publish electron-builder update metadata and macOS ZIP payloads, merge architecture manifests, and include updater artifacts in release checksums.
 - **fix:** Load the bundled Strip logo from package-relative URLs in the Electron reader, including the sidebar, About view, and favicon.
 - **feat:** Show explicit loading states and non-blocking warnings while library data, reader pages, and downloads are being prepared.
 - **fix:** Preserve the reader position across zoom changes and refine reader zoom-lock and download-tray controls.
