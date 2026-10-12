@@ -234,6 +234,9 @@ jobs:
           path: release
           merge-multiple: false
 
+      - name: Install release tooling
+        run: python -m pip install pyyaml
+
       - name: Prepare release artifacts
         run: python .github/scripts/prepare_release_artifacts.py --root release
 
