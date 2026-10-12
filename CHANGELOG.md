@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+## v0.5.1
+
 - **feat:** Check for packaged desktop updates at startup and periodically, download them in the background, and offer a restart to install.
 - **ci:** Publish electron-builder update metadata and macOS ZIP payloads, merge architecture manifests, and include updater artifacts in release checksums.
 
