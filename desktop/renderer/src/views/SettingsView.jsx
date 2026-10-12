@@ -215,7 +215,7 @@ export default function SettingsView() {
         <div className="settings-group card">
           <h2 className="settings-group-title">About</h2>
           <div className="about-brand">
-            <img src="/strip-logo.png" alt="Strip" className="about-logo" />
+            <img src="strip-logo.png" alt="Strip" className="about-logo" />
             <p className="muted">strip v{appVersion} — webtoon downloader &amp; reader</p>
           </div>
         </div>
