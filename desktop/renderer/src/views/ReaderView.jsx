@@ -42,7 +42,6 @@ function PageImage({ src, index, eager, loaded, wrapperRef, onFirstImage }) {
           style={{ display: imgLoaded ? "block" : "none" }}
           alt={`Page ${index + 1}`}
           src={src}
-          loading={index < 2 ? "eager" : "lazy"}
           decoding="async"
           fetchPriority={index === 0 ? "high" : "auto"}
           onLoad={() => {
