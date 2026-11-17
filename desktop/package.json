@@ -4,7 +4,7 @@
     "name": "ZLouisMiguel",
     "email": "stripdl@users.noreply.github.com"
   },
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Webtoon reader powered by strip",
   "homepage": "https://github.com/Louis2324/stripdl",
   "main": "out/main/index.js",

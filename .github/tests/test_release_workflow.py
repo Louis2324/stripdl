@@ -103,7 +103,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
     def test_tag_validator_accepts_matching_tag_and_rejects_mismatch(self):
         script = ROOT / ".github" / "scripts" / "verify_release_tag.py"
         matching = subprocess.run(
-            [sys.executable, str(script), "--tag", "v0.5.1"],
+            [sys.executable, str(script), "--tag", "v0.5.2"],
             cwd=ROOT,
             capture_output=True,
             text=True,
