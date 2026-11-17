@@ -5,7 +5,7 @@
 // next-chapter preload, resume-to-saved-page on open, and keyboard
 // shortcuts.
 
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useConfig } from "../hooks/useConfig.js";
 import { updateLastReadPosition } from "../lib/readingProgress.js";
 import { createProgressDebouncer } from "../lib/progressDebouncer.mjs";
@@ -21,9 +21,10 @@ import {
   getReaderZoomStyle,
 } from "../lib/readerZoom.mjs";
 import { getReaderContentState } from "../lib/readerState.mjs";
+import { markPerf } from "../lib/perfMarks.mjs";
 import LoadingIndicator from "../components/LoadingIndicator.jsx";
 
-function PageImage({ src, index, eager, loaded, wrapperRef }) {
+function PageImage({ src, index, eager, loaded, wrapperRef, onFirstImage }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const shouldRender = eager || loaded;
@@ -41,7 +42,13 @@ function PageImage({ src, index, eager, loaded, wrapperRef }) {
           style={{ display: imgLoaded ? "block" : "none" }}
           alt={`Page ${index + 1}`}
           src={src}
-          onLoad={() => setImgLoaded(true)}
+          loading={index < 2 ? "eager" : "lazy"}
+          decoding="async"
+          fetchPriority={index === 0 ? "high" : "auto"}
+          onLoad={() => {
+            setImgLoaded(true);
+            if (index === 0) onFirstImage?.();
+          }}
           onError={() => setImgError(true)}
         />
       )}
@@ -73,6 +80,7 @@ export default function ReaderView({
   const [pageHeights, setPageHeights] = useState([]);
   const [zoom, setZoom] = useState(1);
   const [zoomLocked, setZoomLocked] = useState(false);
+  const firstImageMarkedRef = useRef(false);
 
   const ZOOM_MIN = 0.5;
   const ZOOM_MAX = 3;
@@ -168,13 +176,21 @@ export default function ReaderView({
     setLoadedSet(new Set());
     setPageHeights([]);
     preloadTriggeredRef.current = false;
+    firstImageMarkedRef.current = false;
     pageRefs.current = [];
     intersectingPagesRef.current.clear();
 
     (async () => {
       let filePaths = [];
+      markPerf("chapter-pages-request-start");
+      let savedPagePromise = scrollToPage
+        ? Promise.resolve(scrollToPage)
+        : window.strip.progress.get(progressKey).catch(() => 0);
       try {
-        filePaths = await window.strip.chapter.pages(chapter.directory);
+        [filePaths, savedPagePromise] = await Promise.all([
+          window.strip.chapter.pages(chapter.directory),
+          savedPagePromise,
+        ]);
       } catch (e) {
         if (!cancelled) {
           setError(e.message || String(e));
@@ -184,18 +200,12 @@ export default function ReaderView({
       }
       if (cancelled) return;
 
+      markPerf("chapter-pages-response");
       const urls = filePaths.map((p) => toFileUrl(p));
       setPages(urls);
       setLoading(false);
 
-      let sp = scrollToPage;
-      if (!sp) {
-        try {
-          sp = (await window.strip.progress.get(progressKey)) || 0;
-        } catch (_) {
-          sp = 0;
-        }
-      }
+      const sp = (await savedPagePromise) || 0;
       const restoredPage = Math.max(0, Math.min(urls.length - 1, Number(sp) || 0));
       if (!cancelled) {
         setStartPage(restoredPage);
@@ -214,8 +224,11 @@ export default function ReaderView({
   }, [chapter?.directory]);
 
   const readerWindow = getReaderWindow(pages.length, visibleIndex, 4);
-  const spacerHeights = getWindowSpacerHeights(
-    pageHeights, readerWindow.start, readerWindow.end,
+  const spacerHeights = useMemo(
+    () => getWindowSpacerHeights(
+      pageHeights, readerWindow.start, readerWindow.end,
+    ),
+    [pageHeights, readerWindow.start, readerWindow.end],
   );
 
   function preloadNextChapter() {
@@ -308,10 +321,10 @@ export default function ReaderView({
 
   useEffect(() => {
     if (!pages.length || startPage <= 0 || startPage >= pages.length) return;
-    const t = setTimeout(() => {
+    const frame = requestAnimationFrame(() => {
       pageRefs.current[startPage]?.scrollIntoView({ behavior: "auto" });
-    }, 200);
-    return () => clearTimeout(t);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [pages, startPage]);
 
   const handleScroll = useCallback(() => {
@@ -576,9 +589,14 @@ export default function ReaderView({
               key={i}
               src={src}
               index={i}
-              eager={!useLazy}
+              eager={!useLazy || i < 2}
               loaded={loadedSet.has(i)}
               wrapperRef={(el) => (pageRefs.current[i] = el)}
+              onFirstImage={() => {
+                if (firstImageMarkedRef.current) return;
+                firstImageMarkedRef.current = true;
+                markPerf("first-reader-image");
+              }}
             />
             );
           })}

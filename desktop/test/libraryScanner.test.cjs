@@ -14,6 +14,7 @@ async function makeSeriesFixture(t, invalidSeriesMetadata = false) {
   await fs.writeFile(path.join(seriesDir, "metadata.json"), invalidSeriesMetadata ? "{" : JSON.stringify({ title: "A" }));
   await fs.writeFile(path.join(seriesDir, "001", "metadata.json"), JSON.stringify({ number: 1, title: "One" }));
   await fs.writeFile(path.join(seriesDir, "002_5", "metadata.json"), JSON.stringify({ number: 2.5, title: "Two and a half" }));
+  await fs.writeFile(path.join(seriesDir, "001", ".complete"), JSON.stringify({ pages: 17 }));
   return root;
 }
 
@@ -22,6 +23,7 @@ test("scans series and chapter metadata asynchronously", async (t) => {
   const series = await scanLibrary(root);
   assert.equal(series[0].title, "A");
   assert.deepEqual(series[0].chapters.map((chapter) => chapter.number), [1, 2.5]);
+  assert.equal(series[0].chapters[0].pageCount, 17);
 });
 
 test("returns an empty list for a missing root and tolerates invalid metadata", async (t) => {

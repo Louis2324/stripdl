@@ -17,6 +17,7 @@ import { ToastProvider } from "./context/ToastContext.jsx";
 import { ConfirmProvider } from "./context/ConfirmContext.jsx";
 import { DownloadTrayProvider } from "./context/DownloadTrayContext.jsx";
 import { applyTheme } from "./lib/theme.js";
+import { markPerf } from "./lib/perfMarks.mjs";
 
 function AppShell() {
   const [view, setView] = useState("library");
@@ -25,6 +26,7 @@ function AppShell() {
   const [readerScrollToPage, setReaderScrollToPage] = useState(0);
 
   useEffect(() => {
+    markPerf("app-ready");
     let cancelled = false;
     window.strip.config.get().then((cfg) => {
       if (!cancelled) applyTheme(cfg.theme ?? "system");

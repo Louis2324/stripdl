@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld("strip", {
 
   progress: {
     get: (key) => ipcRenderer.invoke("progress:get", key),
+    all: () => ipcRenderer.invoke("progress:all"),
     savePosition: (position) => ipcRenderer.invoke("progress:savePosition", position),
   },
 

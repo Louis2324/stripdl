@@ -6,54 +6,54 @@
 // savings from readingProgress.js's computeSeriesProgress() split pays
 // off, versus doing it per-card as each SeriesCard mounts.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getCachedLibrary,
   setCachedLibrary,
   invalidateLibraryCache,
 } from "../lib/libraryCache.js";
-import {
-  getLastReadPosition,
-  getRecentlyReadTs,
-  computeSeriesProgress,
-} from "../lib/readingProgress.js";
+import { enrichLibraryWithProgress } from "../lib/libraryProgress.mjs";
+import { markPerf } from "../lib/perfMarks.mjs";
 
 async function enrichLibrary(rawSeries) {
-  return Promise.all(
-    rawSeries.map(async (s) => {
-      const [lastRead, lastReadTs] = await Promise.all([
-        getLastReadPosition(s.title),
-        getRecentlyReadTs(s.title),
-      ]);
-      return {
-        ...s,
-        lastRead,
-        progress: computeSeriesProgress(s, lastRead),
-        lastReadTs: lastReadTs || 0,
-      };
-    }),
-  );
+  const progress = await window.strip.progress.all();
+  return enrichLibraryWithProgress(rawSeries, progress);
 }
 
 export function useLibrary() {
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async (forceRefresh = false) => {
-    setLoading(true);
+    const generation = ++loadGeneration.current;
+    markPerf("library-request-start");
     setError(null);
     try {
       let raw = forceRefresh ? null : getCachedLibrary();
       if (!raw) {
+        setLoading(true);
         raw = await window.strip.library.scan();
         setCachedLibrary(raw);
       }
-      setLibrary(await enrichLibrary(raw));
-    } catch (e) {
-      setError(e.message || String(e));
-    } finally {
+
+      if (generation !== loadGeneration.current) return;
+      markPerf("library-response");
+      setLibrary(raw);
       setLoading(false);
+      markPerf("library-visible");
+
+      void enrichLibrary(raw).then((enriched) => {
+        if (generation === loadGeneration.current) setLibrary(enriched);
+      }).catch(() => {
+        // Cached/raw library data remains usable when progress enrichment fails.
+      });
+    } catch (e) {
+      if (generation === loadGeneration.current) {
+        setError(e.message || String(e));
+        setLoading(false);
+      }
     }
   }, []);
 
