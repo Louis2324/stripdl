@@ -235,6 +235,43 @@ class DownloadFailure(RuntimeError):
         ))
 
 
+def _record_failed_download(url: str, failures, outcome: str, root=None):
+    """Persist failed chapter URLs without masking the original download error."""
+    target_root = Path(root) if root is not None else config.download_dir
+    record_path = target_root / ".failed-downloads.json"
+    try:
+        target_root.mkdir(parents=True, exist_ok=True)
+        try:
+            records = json.loads(record_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+            records = []
+        if not isinstance(records, list):
+            records = []
+
+        records = [record for record in records if record.get("url") != url]
+        records.append({
+            "url": url,
+            "outcome": outcome,
+            "updated_at": time.time(),
+            "failures": [
+                {"chapter": failure.number, "message": failure.message}
+                for failure in failures
+            ],
+        })
+
+        temp_path = record_path.with_suffix(".json.tmp")
+        temp_path.write_text(
+            json.dumps(records, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        temp_path.replace(record_path)
+    except Exception:
+        # Failure persistence is best-effort and must never hide the download
+        # failure that the caller needs to see.
+        return False
+    return True
+
+
 # ─────────────────────────────────────────────────────────────────────
 #  Per-series file lock
 # ─────────────────────────────────────────────────────────────────────
@@ -292,10 +329,10 @@ class SeriesLock:
             return True
         except FileExistsError:
             try:
-                pid = int(self._path.read_text().strip())
+                pid = int(self._path.read_text(encoding="utf-8").strip())
             except (ValueError, OSError):
                 # Lock file is empty/corrupt — treat as stale and take over.
-                self._path.write_text(str(os.getpid()))
+                self._path.write_text(str(os.getpid()), encoding="utf-8")
                 self._acquired = True
                 return True
 
@@ -303,7 +340,7 @@ class SeriesLock:
                 return False
 
             # Stale lock from a crashed/killed process — take it over.
-            self._path.write_text(str(os.getpid()))
+            self._path.write_text(str(os.getpid()), encoding="utf-8")
             self._acquired = True
             return True
 
@@ -396,15 +433,17 @@ def _load_manifest(ch_dir: Path) -> dict:
     m = ch_dir / _MANIFEST
     if m.exists():
         try:
-            return json.loads(m.read_text())
+            return json.loads(m.read_text(encoding="utf-8"))
         except Exception:
             pass
     return {}
 
 
 def _save_manifest(ch_dir, hashes, total_pages):
-    (ch_dir / _MANIFEST).write_text(json.dumps(
-        {"pages": total_pages, "hashes": hashes, "timestamp": time.time()}))
+    (ch_dir / _MANIFEST).write_text(
+        json.dumps({"pages": total_pages, "hashes": hashes, "timestamp": time.time()}),
+        encoding="utf-8",
+    )
 
 
 def _chapter_is_complete(ch_dir: Path, expected_pages: int) -> bool:
@@ -467,7 +506,7 @@ def download_chapter(
     ch_dir = series_dir / _chapter_dirname(chapter.number)
     ch_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(ch_dir / "metadata.json", "w") as f:
+    with open(ch_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump({"number": chapter.number, "title": chapter.title,
                    "url": chapter.url, "date": chapter.date}, f, indent=2)
 
@@ -559,7 +598,9 @@ def download_chapter(
 
 def _finalize_chapter(ch_dir, total, verify, hashes=None):
     (ch_dir / _SENTINEL).write_text(
-        json.dumps({"pages": total, "timestamp": time.time()}))
+        json.dumps({"pages": total, "timestamp": time.time()}),
+        encoding="utf-8",
+    )
     if verify and hashes:
         _save_manifest(ch_dir, hashes, total)
 
@@ -628,6 +669,9 @@ def download_series(
             json_progress=json_progress, progress_cb=progress_cb,
             warning_cb=warning_cb,
         )
+    except DownloadFailure as exc:
+        _record_failed_download(canonical_url, exc.failures, exc.outcome)
+        raise
     finally:
         lock.release()
 
@@ -654,7 +698,7 @@ def _try_load_cached_series_info(url: str) -> Optional[SeriesInfo]:
         if not meta_path.exists():
             continue
         try:
-            meta = json.loads(meta_path.read_text())
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
         except Exception:
             continue
         if meta.get("url", "") != url:
@@ -691,7 +735,7 @@ def _do_download(parser, url, series_info, series_dir,
     verify = config.get("verify_integrity", False)
 
     # Write / refresh series metadata
-    with open(series_dir / "metadata.json", "w") as f:
+    with open(series_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump({
             "title": series_info.title, "author": series_info.author,
             "description": series_info.description, "cover_url": series_info.cover_url,
