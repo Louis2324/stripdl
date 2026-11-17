@@ -6,6 +6,12 @@ All notable changes to this project are documented here.
 
 _No unreleased changes yet._
 
+## v0.5.2
+
+- **perf:** Reduced the bundled CLI and Electron package size by excluding verified unused modules, locales, source maps, and development-only files.
+- **perf:** Improved library startup and reader first-page loading with bounded filesystem work, cache-first rendering, bulk progress reads, and parallel chapter enumeration.
+- **fix:** Updated packaged-app update metadata to use the `Louis2324/stripdl` repository.
+
 ## v0.5.1
 
 - **feat:** Check for packaged desktop updates at startup and periodically, download them in the background, and offer a restart to install.
