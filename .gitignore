@@ -23,6 +23,7 @@ desktop/release/
 
 # Strip data (downloads)
 strip-data/
+.strip-library-index.json
 *.jpg
 
 # Misc
