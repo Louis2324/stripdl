@@ -61,6 +61,16 @@ test("packaged renderer has no remote font startup dependency", () => {
   assert.doesNotMatch(index, /fonts\.googleapis\.com|fonts\.gstatic\.com/);
 });
 
+test("reader relies on its custom observer instead of native lazy loading", () => {
+  const reader = fs.readFileSync(
+    path.join(root, "renderer", "src", "views", "ReaderView.jsx"),
+    "utf8",
+  );
+  assert.match(reader, /new IntersectionObserver/);
+  assert.match(reader, /decoding="async"/);
+  assert.doesNotMatch(reader, /loading=\{index < 2 \? "eager" : "lazy"\}/);
+});
+
 test("packaging keeps one Electron locale and excludes non-runtime files", () => {
   const packageJson = require("../package.json");
   assert.deepEqual(packageJson.build.electronLanguages, ["en-US"]);
