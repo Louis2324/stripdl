@@ -71,6 +71,17 @@ test("reader relies on its custom observer instead of native lazy loading", () =
   assert.doesNotMatch(reader, /loading=\{index < 2 \? "eager" : "lazy"\}/);
 });
 
+test("reader exposes accessible auto-scroll controls and the keyboard shortcut", () => {
+  const reader = fs.readFileSync(
+    path.join(root, "renderer", "src", "views", "ReaderView.jsx"),
+    "utf8",
+  );
+  assert.match(reader, /id="auto-scroll-btn"/);
+  assert.match(reader, /id="auto-scroll-speed"/);
+  assert.match(reader, /key === "a"/);
+  assert.match(reader, /requestAnimationFrame\(tick\)/);
+});
+
 test("packaging keeps one Electron locale and excludes non-runtime files", () => {
   const packageJson = require("../package.json");
   assert.deepEqual(packageJson.build.electronLanguages, ["en-US"]);
@@ -88,4 +99,16 @@ test("CLI build manifest includes every registered parser", () => {
 test("CLI build status output is safe on Windows code pages", () => {
   const build = fs.readFileSync(path.resolve(root, "..", "build_cli.py"), "utf8");
   assert.doesNotMatch(build, /[✓✗]/);
+});
+
+test("Windows uninstaller is branded and never targets the comic library", () => {
+  const nsis = fs.readFileSync(
+    path.join(root, "installer", "assets", "windows", "installer.nsh"),
+    "utf8",
+  );
+  assert.match(nsis, /customUnWelcomePage/);
+  assert.match(nsis, /customUnInstall/);
+  assert.match(nsis, /Get-Process -Name Strip/);
+  assert.match(nsis, /Please close Strip Reader/);
+  assert.doesNotMatch(nsis, /download_dir|strip-data|RMDir.*library/i);
 });

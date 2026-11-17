@@ -13,7 +13,7 @@ from or opening pull requests against `main`, follow this file's `dev` workflow 
 - `desktop/` contains the Electron main/preload process, React renderer, and Node test
   suite.
 - GitHub Issues are the source of truth for current bugs, requested features, and
-  follow-up work: https://github.com/ZLouisMiguel/stripdl/issues
+  follow-up work: https://github.com/Louis2324/stripdl/issues
 - `TO_DO.md` and `features.md` are currently personal working notes from manual testing.
   They are not the project backlog or an authoritative feature specification. Do not
   require them to exist, use them to decide scope, or update them in a PR unless the

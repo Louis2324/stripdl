@@ -11,6 +11,28 @@ from strip.downloader import ChapterFailure, DownloadFailure
 
 
 class CliFailureTests(unittest.TestCase):
+    def test_show_providers_lists_comix(self):
+        result = CliRunner().invoke(cli, ["show", "providers"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Comix", result.output)
+        self.assertIn("comix.to", result.output)
+
+    def test_retry_failed_download_clears_successful_record(self):
+        with patch("strip.cli.load_failed_downloads", return_value=[{
+            "url": "https://www.webtoons.com/en/x/list?title_no=1",
+            "failures": [{"chapter": 4, "message": "timeout"}],
+        }]), patch("strip.cli.get_parser", return_value=object()), \
+             patch("strip.cli.download_series") as download, \
+             patch("strip.cli.clear_failed_download") as clear:
+            result = CliRunner().invoke(cli, ["retry-failed"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(download.call_args.kwargs["specific_chapters"], [4.0])
+        clear.assert_called_once_with(
+            "https://www.webtoons.com/en/x/list?title_no=1", chapters=[4.0]
+        )
+
     def test_library_renders_non_ascii_metadata_without_traceback(self):
         series = SimpleNamespace(
             title="Returned_by_the_Kingdom\u2014世界",

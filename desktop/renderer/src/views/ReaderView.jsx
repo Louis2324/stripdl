@@ -79,6 +79,8 @@ export default function ReaderView({
   const [pageHeights, setPageHeights] = useState([]);
   const [zoom, setZoom] = useState(1);
   const [zoomLocked, setZoomLocked] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(false);
+  const [autoScrollSpeed, setAutoScrollSpeed] = useState(1);
   const firstImageMarkedRef = useRef(false);
 
   const ZOOM_MIN = 0.5;
@@ -159,6 +161,27 @@ export default function ReaderView({
   }, [progressKey]);
 
   useEffect(() => {
+    if (!autoScroll) return undefined;
+    let frame;
+    let previous = null;
+    const tick = (now) => {
+      const container = containerRef.current;
+      if (!container) return;
+      if (previous === null) previous = now;
+      const elapsed = Math.min(now - previous, 50);
+      previous = now;
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
+        setAutoScroll(false);
+        return;
+      }
+      container.scrollTop += autoScrollSpeed * (elapsed / 16.67);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [autoScroll, autoScrollSpeed]);
+
+  useEffect(() => {
     let cancelled = false;
     if (!chapter) return;
 
@@ -172,6 +195,7 @@ export default function ReaderView({
     setError(null);
     setVisibleIndex(0);
     setShowEndOverlay(false);
+    setAutoScroll(false);
     setLoadedSet(new Set());
     setPageHeights([]);
     preloadTriggeredRef.current = false;
@@ -406,6 +430,11 @@ export default function ReaderView({
       if (key === "=" || key === "+") { e.preventDefault(); zoomIn();    return; }
       if (key === "-")                 { e.preventDefault(); zoomOut();   return; }
       if (key === "0")                 { e.preventDefault(); zoomReset(); return; }
+      if (key === "a") {
+        e.preventDefault();
+        setAutoScroll((enabled) => !enabled);
+        return;
+      }
 
       const container = containerRef.current;
       if (!container) return;
@@ -502,6 +531,27 @@ export default function ReaderView({
           </span>
           {/* Zoom controls */}
           <div className="reader-zoom-controls" aria-label="Zoom controls">
+            <button
+              id="auto-scroll-btn"
+              className="btn btn-ghost reader-zoom-btn"
+              title="Toggle auto-scroll (A)"
+              aria-label={autoScroll ? "Pause auto-scroll" : "Start auto-scroll"}
+              aria-pressed={autoScroll}
+              onClick={() => setAutoScroll((enabled) => !enabled)}
+            >
+              {autoScroll ? "Pause" : "Auto"}
+            </button>
+            <select
+              id="auto-scroll-speed"
+              className="select reader-auto-scroll-speed"
+              aria-label="Auto-scroll speed"
+              value={autoScrollSpeed}
+              onChange={(event) => setAutoScrollSpeed(Number(event.target.value))}
+            >
+              <option value="1">1×</option>
+              <option value="2">2×</option>
+              <option value="4">4×</option>
+            </select>
             <button
               id="zoom-out-btn"
               className="btn btn-ghost icon-btn reader-zoom-btn"

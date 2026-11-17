@@ -56,6 +56,19 @@ jobs:
         working-directory: core
         run: python -m unittest discover -s tests -p "test_*.py"
 
+      - name: Run repository script tests
+        run: python -m unittest discover -s scripts/tests -t . -p "test_*.py"
+
+      - name: Run packaged reader smoke test
+        working-directory: desktop
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a npm run test:e2e
+          else
+            npm run test:e2e
+          fi
+
       - name: Run desktop tests
         working-directory: desktop
         run: npm test

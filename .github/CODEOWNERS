@@ -1,0 +1,9 @@
+# Default owner for project changes.
+* @Louis2324
+
+# Changes in these areas should receive maintainer review.
+/.github/ @Louis2324
+/desktop/main/ @Louis2324
+/desktop/installer/ @Louis2324
+/core/strip/parsers/ @Louis2324
+/SECURITY.md @Louis2324

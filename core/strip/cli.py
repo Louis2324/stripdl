@@ -28,9 +28,15 @@ from rich.markup import escape
 from strip.config import config
 from strip import __version__
 from strip.diagnostics import safe_terminal_text
-from strip.parsers import get_parser
+from strip.parsers import get_parser, provider_details
 from strip.parsers.base import ChapterInfo
-from strip.downloader import download_series, ChapterProgress, DownloadFailure
+from strip.downloader import (
+    download_series,
+    ChapterProgress,
+    DownloadFailure,
+    clear_failed_download,
+    load_failed_downloads,
+)
 from strip.library import scan_library
 
 console = Console()
@@ -542,6 +548,116 @@ def list_chapters(url: str):
         )
     console.print(table)
     console.print(f"\n[dim]Total: {len(chapters)} chapters[/dim]")
+
+
+# ────────────────────────────────────────────────────────────────────
+#  failed downloads
+# ────────────────────────────────────────────────────────────────────
+
+@cli.command(name="failed")
+def failed_downloads():
+    """Show persisted chapter failures that can be retried."""
+    records = load_failed_downloads()
+    if not records:
+        console.print("[green]No failed downloads recorded.[/green]")
+        return
+
+    table = Table(title="Failed Downloads", box=box.ROUNDED)
+    table.add_column("Series URL", style="cyan")
+    table.add_column("Chapters", style="yellow")
+    table.add_column("Last error")
+    for record in records:
+        failures = record.get("failures", [])
+        chapters = ", ".join(
+            format_chapter_number(item.get("chapter", 0))
+            for item in failures
+            if isinstance(item, dict) and item.get("chapter") is not None
+        ) or "unknown"
+        message = next(
+            (
+                str(item.get("message", ""))
+                for item in failures
+                if isinstance(item, dict) and item.get("message")
+            ),
+            "unknown error",
+        )
+        table.add_row(terminal_text(record["url"]), chapters, terminal_text(message))
+    console.print(table)
+    console.print("\n[dim]Retry with: stripdl retry-failed[/dim]")
+
+
+@cli.group(name="show")
+def show():
+    """Show supported providers and local status information."""
+    pass
+
+
+@show.command(name="providers")
+def show_providers():
+    """Show supported provider names and URL domains."""
+    table = Table(title="Supported Providers", box=box.SIMPLE_HEAD)
+    table.add_column("Provider", style="bold cyan")
+    table.add_column("URL pattern")
+    table.add_column("Notes")
+    for provider in provider_details():
+        table.add_row(provider["name"], provider["pattern"], provider["notes"])
+    console.print(table)
+
+
+@cli.command(name="retry-failed")
+@click.option("--url", "series_url", help="Retry only this recorded series URL.")
+@click.option("--chapter", "chapter_number", type=float, multiple=True,
+              help="Retry only this chapter; may be repeated.")
+def retry_failed_downloads(series_url: Optional[str], chapter_number: tuple[float, ...]):
+    """Retry recorded chapter failures and remove successful entries."""
+    records = load_failed_downloads()
+    if series_url:
+        records = [record for record in records if record.get("url") == series_url]
+    if not records:
+        console.print("[green]No matching failed downloads recorded.[/green]")
+        return
+
+    any_failed = False
+    for record in records:
+        url = record["url"]
+        recorded = [
+            float(item["chapter"])
+            for item in record.get("failures", [])
+            if isinstance(item, dict) and item.get("chapter") is not None
+        ]
+        chapters = list(chapter_number) or recorded
+        try:
+            parser = get_parser(url)
+            download_series(
+                parser=parser,
+                url=url,
+                specific_chapters=chapters,
+            )
+        except DownloadFailure as error:
+            any_failed = True
+            failed_numbers = [failure.number for failure in error.failures]
+            successful = [number for number in chapters if number not in failed_numbers]
+            clear_failed_download(url, chapters=successful)
+            # The downloader records the latest failures; this call removes only
+            # chapters that were successfully retried when a partial retry ran.
+            console.print(
+                f"[red]Retry failed:[/red] {terminal_text(url)} "
+                f"({', '.join(format_chapter_number(number) for number in failed_numbers)})"
+            )
+        except Exception as error:
+            any_failed = True
+            console.print(
+                f"[red]Retry failed:[/red] {terminal_text(url)} — "
+                f"{terminal_text(error)}"
+            )
+        else:
+            clear_failed_download(url, chapters=chapters)
+            console.print(
+                f"[green]Retry complete:[/green] {terminal_text(url)} "
+                f"({', '.join(format_chapter_number(number) for number in chapters)})"
+            )
+    if any_failed:
+        raise click.exceptions.Exit(1)
 
 
 # ────────────────────────────────────────────────────────────────────
