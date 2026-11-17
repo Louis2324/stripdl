@@ -51,8 +51,8 @@
   --toolbar-h: 52px;
 
   /* Typography */
-  --font-display: "DM Serif Display", Georgia, serif;
-  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 [data-theme="dark"] {
@@ -400,6 +400,8 @@ select {
 
 .series-card {
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 410px;
   display: flex;
   flex-direction: column;
   gap: 8px;

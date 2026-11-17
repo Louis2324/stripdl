@@ -53,6 +53,21 @@ test("packaged renderer uses relative logo paths and keeps loading indicators", 
   assert.match(reader, /LoadingIndicator label="Loading chapter pages…"/);
 });
 
+test("packaged renderer has no remote font startup dependency", () => {
+  const index = fs.readFileSync(
+    path.join(root, "renderer", "index.html"),
+    "utf8",
+  );
+  assert.doesNotMatch(index, /fonts\.googleapis\.com|fonts\.gstatic\.com/);
+});
+
+test("packaging keeps one Electron locale and excludes non-runtime files", () => {
+  const packageJson = require("../package.json");
+  assert.deepEqual(packageJson.build.electronLanguages, ["en-US"]);
+  assert.ok(packageJson.build.files.includes("!**/*.map"));
+  assert.ok(packageJson.build.files.includes("!**/react-dom/test-utils.js"));
+});
+
 test("CLI build manifest includes every registered parser", () => {
   const build = fs.readFileSync(path.resolve(root, "..", "build_cli.py"), "utf8");
   for (const parser of ["webtoons", "weebcentral", "comix", "asurascans", "mangakakalot"]) {

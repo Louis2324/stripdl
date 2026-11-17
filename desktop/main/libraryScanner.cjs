@@ -20,6 +20,23 @@ async function exists(fsPromises, filePath) {
   }
 }
 
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+
+  async function worker() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 async function scanLibrary(root, fsPromises = require("node:fs/promises")) {
   let entries;
   try {
@@ -29,39 +46,38 @@ async function scanLibrary(root, fsPromises = require("node:fs/promises")) {
     throw error;
   }
 
-  const series = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+  const seriesEntries = entries.filter((entry) => entry.isDirectory());
+  // Keep disk work bounded while allowing independent series directories to
+  // be scanned in parallel on large libraries.
+  const series = (await mapWithConcurrency(seriesEntries, 4, async (entry) => {
     let seriesDir;
     try {
       seriesDir = await assertLibraryPath(path.join(root, entry.name), root);
     } catch (_) {
-      continue;
+      return null;
     }
     const metaPath = path.join(seriesDir, "metadata.json");
-    if (!(await exists(fsPromises, metaPath))) continue;
+    if (!(await exists(fsPromises, metaPath))) return null;
     let safeMetaPath;
     try {
       safeMetaPath = await assertLibraryPath(metaPath, root);
     } catch (_) {
-      continue;
+      return null;
     }
     const meta = await readJson(fsPromises, safeMetaPath);
     const coverPath = path.join(seriesDir, "cover.jpg");
     const chapterEntries = await fsPromises.readdir(seriesDir, { withFileTypes: true });
-    const chapters = [];
-
-    for (const chapterEntry of chapterEntries) {
-      if (!chapterEntry.isDirectory()) continue;
+    const chapterDirectories = chapterEntries.filter((entry) => entry.isDirectory());
+    const chapters = (await mapWithConcurrency(chapterDirectories, 4, async (chapterEntry) => {
       const match = CHAPTER_DIR_RE.exec(chapterEntry.name);
-      if (!match) continue;
+      if (!match) return null;
 
       const number = parseInt(match[1], 10) + (match[2] ? parseInt(match[2], 10) / 10 : 0);
       let chapterDir;
       try {
         chapterDir = await assertLibraryPath(path.join(seriesDir, chapterEntry.name), root);
       } catch (_) {
-        continue;
+        return null;
       }
       let chapterMetaPath = path.join(chapterDir, "metadata.json");
       try {
@@ -70,26 +86,34 @@ async function scanLibrary(root, fsPromises = require("node:fs/promises")) {
         chapterMetaPath = null;
       }
       const chapterMeta = chapterMetaPath ? await readJson(fsPromises, chapterMetaPath) : {};
-      const pageFiles = await fsPromises.readdir(chapterDir);
-      chapters.push({
+      const completion = await readJson(
+        fsPromises,
+        path.join(chapterDir, ".complete"),
+      );
+      const completedPageCount = Number.isInteger(completion.pages) && completion.pages >= 0
+        ? completion.pages
+        : null;
+      const pageCount = completedPageCount ?? (await fsPromises.readdir(chapterDir))
+        .filter((file) => file.endsWith(".jpg") && file !== "cover.jpg").length;
+      return {
         number,
         title: `Chapter ${number}`,
         ...chapterMeta,
         directory: chapterDir,
-        pageCount: pageFiles.filter((file) => file.endsWith(".jpg") && file !== "cover.jpg").length,
-      });
-    }
+        pageCount,
+      };
+    })).filter(Boolean);
 
     chapters.sort((a, b) => a.number - b.number);
-    series.push({
+    return {
       ...meta,
       directory: seriesDir,
       coverPath: (await exists(fsPromises, coverPath)) &&
         await assertLibraryPath(coverPath, root).then(() => true, () => false)
         ? coverPath : null,
       chapters,
-    });
-  }
+    };
+  })).filter(Boolean);
   return series;
 }
 

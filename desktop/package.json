@@ -6,7 +6,7 @@
   },
   "version": "0.5.1",
   "description": "Webtoon reader powered by strip",
-  "homepage": "https://github.com/ZLouisMiguel/stripdl",
+  "homepage": "https://github.com/Louis2324/stripdl",
   "main": "out/main/index.js",
   "scripts": {
     "test": "node --test",
@@ -29,11 +29,15 @@
     },
     "files": [
       "out/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!**/*.map",
+      "!**/{test,tests,coverage}{,/**/*}",
+      "!**/react-dom/test-utils.js"
     ],
+    "electronLanguages": ["en-US"],
     "publish": {
       "provider": "github",
-      "owner": "ZLouisMiguel",
+      "owner": "Louis2324",
       "repo": "stripdl",
       "releaseType": "release"
     },

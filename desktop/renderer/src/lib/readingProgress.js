@@ -16,6 +16,8 @@
 //      `${title}/recentlyRead` lookup that was previously inlined in
 //      app.js's renderLibrary().
 
+import { computeSeriesProgress } from "./progressMath.mjs";
+
 export async function getLastReadPosition(seriesTitle) {
   try {
     return await window.strip.progress.get(`${seriesTitle}/lastRead`);
@@ -50,13 +52,4 @@ export async function updateLastReadPosition(
   }
 }
 
-/** Pure — no IPC. Takes an already-fetched lastRead object (or null). */
-export function computeSeriesProgress(series, lastRead) {
-  if (!series?.chapters?.length || !lastRead) return 0;
-  const idx = series.chapters.findIndex(
-    (c) => c.number == lastRead.chapterNumber,
-  );
-  if (idx === -1) return 0;
-  const chProg = lastRead.pageIndex / (lastRead.totalPages || 1);
-  return ((idx + chProg) / series.chapters.length) * 100;
-}
+export { computeSeriesProgress };

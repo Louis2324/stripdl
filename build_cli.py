@@ -23,6 +23,23 @@ RESOURCES  = ROOT / "desktop" / "resources" / "strip-cli"
 ENTRY      = ROOT / "core" / "strip" / "cli.py"
 EXE_NAME   = "stripdl"
 
+# The downloader uses Pillow's core image decode/save path and lxml's HTML
+# parser, but it does not use GUI integrations, numerical tooling, or package
+# build tooling. Keeping these exclusions explicit makes the frozen CLI smaller
+# without removing any parser or image format used by Strip.
+PYINSTALLER_EXCLUDES = (
+    "tkinter",
+    "PIL._tkinter_finder",
+    "PIL.ImageGrab",
+    "PIL.ImageQt",
+    "PIL.ImageShow",
+    "PIL.ImageTk",
+    "PIL.ImageWin",
+    "matplotlib",
+    "numpy",
+    "setuptools",
+)
+
 
 def run(*cmd):
     print(f"$ {' '.join(str(c) for c in cmd)}")
@@ -36,7 +53,7 @@ def main():
     shutil.rmtree(BUILD, ignore_errors=True)
 
     # 2. Run PyInstaller
-    run(
+    pyinstaller_cmd = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--name", EXE_NAME,
@@ -49,11 +66,13 @@ def main():
         "--hidden-import", "strip.parsers.comix",
         "--hidden-import", "strip.parsers.asurascans",
         "--hidden-import", "strip.parsers.mangakakalot",
-        "--hidden-import", "PIL._tkinter_finder",
         "--hidden-import", "lxml.etree",
         "--hidden-import", "lxml._elementpath",
-        str(ENTRY),
-    )
+    ]
+    for module in PYINSTALLER_EXCLUDES:
+        pyinstaller_cmd.extend(("--exclude-module", module))
+    pyinstaller_cmd.append(str(ENTRY))
+    run(*pyinstaller_cmd)
 
     # 3. Copy to Electron resources directory
     RESOURCES.mkdir(parents=True, exist_ok=True)
