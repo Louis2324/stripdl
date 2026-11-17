@@ -25,6 +25,7 @@ const { assertLibraryPath, assertSeriesPath, assertChapterPath } = require("./pa
 const { createLineDecoder, summarizeDownloadFailure } = require("./downloadOutput.cjs");
 const { createProgressPersistence } = require("./progressPersistence.cjs");
 const { scanLibrary } = require("./libraryScanner.cjs");
+const { listChapterPages } = require("./chapterPages.cjs");
 const { setupAutoUpdater } = require("./updater.cjs");
 
 const isDev =
@@ -260,13 +261,7 @@ ipcMain.handle("library:scan", () => scanLibrary(appConfig.downloadDir));
 // ──────────────────────────────────────────────────────────────────
 
 ipcMain.handle("chapter:pages", async (_, chapterDir) => {
-  const safeChapterDir = await assertChapterPath(chapterDir, appConfig.downloadDir);
-  const names = await fs.promises.readdir(safeChapterDir);
-  const pages = [];
-  for (const name of names.filter((f) => f.endsWith(".jpg") && !f.startsWith("cover")).sort()) {
-    pages.push(await assertLibraryPath(path.join(safeChapterDir, name), appConfig.downloadDir));
-  }
-  return pages;
+  return listChapterPages(chapterDir, appConfig.downloadDir);
 });
 
 // ──────────────────────────────────────────────────────────────────
@@ -287,6 +282,8 @@ ipcMain.handle(
   "progress:get",
   (_, key) => appConfig.readingProgress?.[key] ?? null,
 );
+
+ipcMain.handle("progress:all", () => ({ ...(appConfig.readingProgress || {}) }));
 
 ipcMain.handle("progress:savePosition", (_, position) =>
   progressPersistence.saveReadingPosition(position),

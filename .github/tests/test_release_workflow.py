@@ -96,7 +96,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertTrue(package.get("homepage"))
         self.assertTrue(build["linux"].get("maintainer"))
         self.assertEqual(build["publish"]["provider"], "github")
-        self.assertEqual(build["publish"]["owner"], "ZLouisMiguel")
+        self.assertEqual(build["publish"]["owner"], "Louis2324")
         self.assertEqual(build["publish"]["repo"], "stripdl")
         self.assertEqual(build["mac"]["target"], ["dmg", "zip"])
 
