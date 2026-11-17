@@ -6,6 +6,10 @@ All notable changes to this project are documented here.
 
 _No unreleased changes yet._
 
+## v0.5.3
+
+- **fix:** Restore reader image loading by relying on Strip's custom intersection observer instead of native lazy loading inside the scroll container.
+
 ## v0.5.2
 
 - **perf:** Reduced the bundled CLI and Electron package size by excluding verified unused modules, locales, source maps, and development-only files.
