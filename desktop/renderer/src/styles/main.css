@@ -797,7 +797,7 @@ select {
 .reader-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--text-muted);
   font-size: 13px;
   white-space: nowrap;
@@ -814,6 +814,55 @@ select {
   background: var(--bg-surface);
 }
 
+.reader-auto-scroll-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+}
+
+.reader-tool-btn {
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.reader-tool-btn[aria-pressed="true"] {
+  background: var(--steel-muted);
+  color: var(--steel-dark);
+  border-color: var(--steel);
+}
+
+.reader-tool-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.reader-auto-scroll-speed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-muted);
+}
+
+.reader-auto-scroll-speed svg {
+  width: 14px;
+  height: 14px;
+}
+
+.reader-auto-scroll-speed select {
+  width: 38px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
 .reader-zoom-btn {
   width: 28px;
   height: 28px;
@@ -827,6 +876,11 @@ select {
   justify-content: center;
   color: var(--text-primary);
   transition: background 0.12s ease, color 0.12s ease;
+}
+
+.reader-zoom-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .reader-zoom-btn:disabled {
