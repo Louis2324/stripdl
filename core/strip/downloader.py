@@ -248,15 +248,30 @@ def _record_failed_download(url: str, failures, outcome: str, root=None):
         if not isinstance(records, list):
             records = []
 
+        previous = next(
+            (record for record in records if record.get("url") == url),
+            None,
+        )
+        existing_failures = {}
+        for item in (previous or {}).get("failures", []):
+            if not isinstance(item, dict) or item.get("chapter") is None:
+                continue
+            try:
+                existing_failures[float(item["chapter"])] = item
+            except (TypeError, ValueError):
+                continue
+        for failure in failures:
+            existing_failures[float(failure.number)] = {
+                "chapter": failure.number,
+                "message": failure.message,
+            }
+
         records = [record for record in records if record.get("url") != url]
         records.append({
             "url": url,
             "outcome": outcome,
             "updated_at": time.time(),
-            "failures": [
-                {"chapter": failure.number, "message": failure.message}
-                for failure in failures
-            ],
+            "failures": list(existing_failures.values()),
         })
 
         temp_path = record_path.with_suffix(".json.tmp")
@@ -268,6 +283,63 @@ def _record_failed_download(url: str, failures, outcome: str, root=None):
     except Exception:
         # Failure persistence is best-effort and must never hide the download
         # failure that the caller needs to see.
+        return False
+    return True
+
+
+def load_failed_downloads(root=None) -> list[dict]:
+    """Load persisted failed-download records without exposing file errors."""
+    target_root = Path(root) if root is not None else config.download_dir
+    record_path = target_root / ".failed-downloads.json"
+    try:
+        records = json.loads(record_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return []
+    if not isinstance(records, list):
+        return []
+    return [record for record in records if isinstance(record, dict) and record.get("url")]
+
+
+def clear_failed_download(url: str, chapters=None, root=None) -> bool:
+    """Remove a whole record or selected chapter failures after a retry."""
+    target_root = Path(root) if root is not None else config.download_dir
+    record_path = target_root / ".failed-downloads.json"
+    records = load_failed_downloads(target_root)
+    changed = False
+    remaining = []
+    selected = None if chapters is None else {float(chapter) for chapter in chapters}
+    for record in records:
+        if record.get("url") != url:
+            remaining.append(record)
+            continue
+        changed = True
+        if selected is None:
+            continue
+        failures = []
+        for failure in record.get("failures", []):
+            try:
+                chapter = float(failure.get("chapter"))
+            except (AttributeError, TypeError, ValueError):
+                chapter = None
+            if chapter not in selected:
+                failures.append(failure)
+        if failures:
+            record["failures"] = failures
+            remaining.append(record)
+    if not changed:
+        return False
+    try:
+        target_root.mkdir(parents=True, exist_ok=True)
+        if remaining:
+            temp_path = record_path.with_suffix(".json.tmp")
+            temp_path.write_text(
+                json.dumps(remaining, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            temp_path.replace(record_path)
+        else:
+            record_path.unlink(missing_ok=True)
+    except OSError:
         return False
     return True
 

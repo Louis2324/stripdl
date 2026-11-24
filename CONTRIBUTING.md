@@ -57,8 +57,8 @@ strip/
 ### Python CLI
 
 ```bash
-git clone https://github.com/ZLouisMiguel/strip.git
-cd strip/core
+git clone https://github.com/Louis2324/stripdl.git
+cd stripdl/core
 
 # Install in editable mode — changes to strip/ take effect immediately
 pip install -e .
@@ -314,12 +314,15 @@ See [Commit message format](#commit-message-format) below.
 
 ## Submitting changes
 
-1. Fork the repository and create a branch from `main`:
+1. Fork the repository, update your local `dev` branch, and create a descriptive
+   topic branch from it:
 
 ```bash
-   git checkout -b fix/webtoons-pagination
+   git switch dev
+   git pull --ff-only origin dev
+   git switch -c fix/webtoons-pagination
    # or
-   git checkout -b feat/mangadex-parser
+   git switch -c feature/mangadex-parser
 ```
 
 2. Make your changes. Keep each commit focused on one thing.
@@ -329,7 +332,7 @@ See [Commit message format](#commit-message-format) below.
    - Electron: run `npm test` and `npm run build` from `desktop`.
    - For parser changes, also verify a real download against the target site when practical.
 
-4. Open a pull request against `main`. Describe what the change does and why, and include any relevant URLs or screenshots.
+4. Open a pull request against `dev`. Describe what the change does and why, and include relevant URLs, screenshots, tests, and known limitations.
 
 ---
 

@@ -17,8 +17,10 @@ class CIWorkflowTests(unittest.TestCase):
         self.assertNotIn("contents: write", workflow)
         for command in (
             "python -m unittest discover",
+            "python -m unittest discover -s scripts/tests",
             "npm test",
             "npm run build",
+            "npm run test:e2e",
             "python scripts/generate_release_assets.py",
             "python scripts/verify_release_assets.py",
             "python build_cli.py",

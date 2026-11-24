@@ -31,3 +31,38 @@ test("returns an empty list for a missing root and tolerates invalid metadata", 
   const root = await makeSeriesFixture(t, true);
   assert.equal((await scanLibrary(root)).length, 1);
 });
+
+test("reuses a rebuildable index when the library fingerprint is unchanged", async (t) => {
+  const root = await makeSeriesFixture(t);
+  const first = await scanLibrary(root);
+  const indexPath = path.join(root, ".strip-library-index.json");
+  assert.equal((await fs.stat(indexPath)).isFile(), true);
+
+  const cached = await scanLibrary(root);
+
+  assert.deepEqual(cached, first);
+});
+
+test("rebuilds the index when metadata changes", async (t) => {
+  const root = await makeSeriesFixture(t);
+  await scanLibrary(root);
+  await fs.writeFile(path.join(root, "A", "metadata.json"), JSON.stringify({ title: "Updated" }));
+
+  const refreshed = await scanLibrary(root);
+
+  assert.equal(refreshed[0].title, "Updated");
+});
+
+test("rebuilds the index when a chapter directory changes", async (t) => {
+  const root = await makeSeriesFixture(t);
+  await scanLibrary(root);
+  await fs.writeFile(path.join(root, "A", "001", "001.jpg"), "page");
+
+  const refreshed = await scanLibrary(root);
+
+  assert.equal(refreshed[0].chapters[0].pageCount, 17);
+  assert.equal(
+    refreshed[0].chapters[0].directory,
+    await fs.realpath(path.join(root, "A", "001")),
+  );
+});

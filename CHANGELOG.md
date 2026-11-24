@@ -6,6 +6,14 @@ All notable changes to this project are documented here.
 
 _No unreleased changes yet._
 
+## v0.5.4
+
+- **fix:** Keep reader progress on the actual page during fast scrolling and start explicitly selected chapters at their first page.
+- **fix:** Pause auto-scroll when the reader receives user scrolling or navigation input, with compact icon controls for speed and state.
+- **fix:** Disable next-chapter navigation at the end of a series and prevent blank-image transitions between chapters.
+- **feat:** Improve library cards with a clearer Continue action and hover/focus details for chapter progress.
+- **ci:** Make desktop tests and packaged Electron smoke checks portable across Windows, macOS, and Linux runners.
+
 ## v0.5.3
 
 - **fix:** Restore reader image loading by relying on Strip's custom intersection observer instead of native lazy loading inside the scroll container.

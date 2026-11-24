@@ -23,7 +23,7 @@ export default function SeriesCard({
 
   const coverSrc = toFileUrl(series.coverPath);
 
-  // Badge for latest chapter read (if available)
+  const chapterCount = series.chapters?.length ?? 0;
   const latestReadChapter = series.lastRead?.chapterNumber;
 
   async function deleteSeries() {
@@ -113,30 +113,28 @@ export default function SeriesCard({
           <div className="series-cover-placeholder">◈</div>
         )}
 
-        {/* Chapter count badge */}
-        <span className="series-card-badge">
-          {series.chapters?.length ?? 0} ch
-        </span>
-
-        {/* Latest read chapter badge */}
-        {latestReadChapter != null && (
-          <div className="series-card-latest-badge">
-            Latest: Ch.{latestReadChapter}
-          </div>
-        )}
-
         {/* Continue reading button */}
         {!selectMode && series.lastRead && (
-          <div
-            className="series-card-continue-badge"
+          <button
+            type="button"
+            className="series-card-continue-button"
+            aria-label={`Continue reading ${series.title} from chapter ${latestReadChapter}`}
             onClick={(e) => {
               e.stopPropagation();
               if (onContinue) onContinue(series);
               else onOpen(series);
             }}
           >
-            Continue
-          </div>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M8 5.5v13l10-6.5-10-6.5Z" />
+            </svg>
+            <span>Continue</span>
+            {latestReadChapter != null && (
+              <span className="series-card-continue-chapter">
+                Ch. {latestReadChapter}
+              </span>
+            )}
+          </button>
         )}
 
         {series.progress > 0 && (
@@ -147,6 +145,21 @@ export default function SeriesCard({
             />
           </div>
         )}
+
+        <div className="series-card-hover-details" aria-label="Series reading details">
+          <span className="series-card-stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Z" />
+              <path d="M4 5.5v16M8 7h8M8 11h8" />
+            </svg>
+            {chapterCount} {chapterCount === 1 ? "chapter" : "chapters"}
+          </span>
+          {latestReadChapter != null && (
+            <span className="series-card-stat series-card-last-read">
+              Last read · Ch. {latestReadChapter}
+            </span>
+          )}
+        </div>
       </div>
       <div className="series-card-title">{series.title}</div>
       <div className="series-card-meta">{series.author || ""}</div>

@@ -218,3 +218,44 @@ class FailedDownloadRecordTests(unittest.TestCase):
         self.assertEqual(records[0]["outcome"], "partial")
         self.assertEqual(records[0]["failures"][0]["chapter"], 2)
         self.assertEqual(records[0]["failures"][0]["message"], "timeout")
+
+    def test_partial_retry_preserves_unselected_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            downloader._record_failed_download(
+                "https://example.test/series",
+                [ChapterFailure(2, "timeout"), ChapterFailure(3, "blocked")],
+                "partial",
+                root=root,
+            )
+            downloader._record_failed_download(
+                "https://example.test/series",
+                [ChapterFailure(2, "still unavailable")],
+                "partial",
+                root=root,
+            )
+
+            records = downloader.load_failed_downloads(root)
+
+        self.assertEqual(
+            {item["chapter"] for item in records[0]["failures"]},
+            {2, 3},
+        )
+        self.assertEqual(records[0]["failures"][0]["message"], "still unavailable")
+
+    def test_clear_failed_download_can_remove_selected_chapters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            downloader._record_failed_download(
+                "https://example.test/series",
+                [ChapterFailure(2, "timeout"), ChapterFailure(3, "blocked")],
+                "partial",
+                root=root,
+            )
+
+            self.assertTrue(downloader.clear_failed_download(
+                "https://example.test/series", chapters=[2], root=root,
+            ))
+            records = downloader.load_failed_downloads(root)
+
+        self.assertEqual([item["chapter"] for item in records[0]["failures"]], [3])
