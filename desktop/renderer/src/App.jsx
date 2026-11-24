@@ -23,7 +23,7 @@ function AppShell() {
   const [view, setView] = useState("library");
   const [currentSeries, setCurrentSeries] = useState(null);
   const [currentChapter, setCurrentChapter] = useState(null);
-  const [readerScrollToPage, setReaderScrollToPage] = useState(0);
+  const [readerScrollToPage, setReaderScrollToPage] = useState(null);
 
   useEffect(() => {
     markPerf("app-ready");
@@ -41,7 +41,7 @@ function AppShell() {
     setView("series");
   }
 
-  function openChapter(series, chapter, scrollToPage = 0) {
+  function openChapter(series, chapter, scrollToPage = null) {
     setCurrentSeries(series);
     setCurrentChapter(chapter);
     setReaderScrollToPage(scrollToPage);

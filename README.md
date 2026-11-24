@@ -48,7 +48,7 @@ Downloads are saved locally, resume after interruptions, and remain available fo
 Requirements: Python 3.9+
 
 ```bash
-git clone https://github.com/ZLouisMiguel/stripdl.git
+git clone https://github.com/Louis2324/stripdl.git
 cd stripdl/core
 python -m pip install -e .
 
@@ -65,6 +65,9 @@ Useful commands:
 
 ```bash
 stripdl list "https://www.webtoons.com/en/..."
+stripdl show providers
+stripdl failed
+stripdl retry-failed
 stripdl library
 stripdl config
 stripdl config --set download_dir="D:\Comics"
@@ -111,11 +114,17 @@ Run the checks before opening a pull request:
 python -m unittest discover -s core/tests -t core -v
 npm test --prefix desktop
 npm run build --prefix desktop
+npm run test:e2e --prefix desktop
 python scripts/generate_release_assets.py
 python scripts/verify_release_assets.py
+python scripts/measure_release.py --root desktop/release --output release-size.json
+node scripts/benchmark_desktop.mjs --series 10 --chapters 20 --pages 40
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the project structure, parser guide, coding conventions, and pull request workflow.
+
+Performance and package-size measurement details are recorded in
+[docs/performance-baseline.md](docs/performance-baseline.md).
 
 Pushes and pull requests run the same checks through GitHub Actions. Versioned releases are created from `vMAJOR.MINOR.PATCH` tags and include standalone CLI artifacts plus branded Strip Reader installers.
 
