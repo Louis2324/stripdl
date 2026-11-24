@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   getVisiblePageIndex,
+  getVisiblePageIndexFromRects,
+  getPageIndexAtOffset,
   getReaderWindow,
   getWindowSpacerHeights,
 } from "../renderer/src/lib/readerWindow.mjs";
@@ -15,6 +17,21 @@ test("chooses the intersecting page nearest the container top", () => {
     ], 2),
     4,
   );
+});
+
+test("uses current page geometry instead of stale observer positions", () => {
+  assert.equal(
+    getVisiblePageIndexFromRects([
+      { index: 4, top: -900, bottom: -20 },
+      { index: 9, top: 20, bottom: 900 },
+    ], 0, 800, 4),
+    9,
+  );
+});
+
+test("falls back to the scroll offset when fast scrolling skips mounted pages", () => {
+  assert.equal(getPageIndexAtOffset(2_050, [], 10, 500), 4);
+  assert.equal(getPageIndexAtOffset(2_050, [400, 600, 500], 10, 500), 4);
 });
 
 test("reader window is bounded and clamps at both ends", () => {

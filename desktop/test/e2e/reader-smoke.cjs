@@ -24,23 +24,30 @@ const waitFor = async (window, expression, timeout = 10000) => {
 async function makeFixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "strip-reader-e2e-"));
   const series = path.join(root, "Sample-Series");
-  const chapter = path.join(series, "001");
-  await fs.mkdir(chapter, { recursive: true });
+  const chapters = [path.join(series, "001"), path.join(series, "002")];
+  await Promise.all(chapters.map((chapter) => fs.mkdir(chapter, { recursive: true })));
   await fs.writeFile(path.join(series, "metadata.json"), JSON.stringify({
     title: "Sample Series",
     author: "E2E Fixture",
     description: "Reader smoke fixture",
   }));
-  await fs.writeFile(path.join(chapter, ".complete"), JSON.stringify({ pages: 1 }));
-  await fs.writeFile(path.join(chapter, "001.jpg"), Buffer.from(
+  const image = Buffer.from(
     "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAHgP//EABQQAQAAAAAAAAAAAAAAAAAAACD/2gAIAQEAAQUCq//EABQRAQAAAAAAAAAAAAAAAAAAACD/2gAIAQMBAT8Bj//EABQRAQAAAAAAAAAAAAAAAAAAACD/2gAIAQIBAT8Bj//EABQQAQAAAAAAAAAAAAAAAAAAACD/2gAIAQEABj8Cf//EABQQAQAAAAAAAAAAAAAAAAAAACD/2gAIAQEAAT8hH//Z",
     "base64",
-  ));
-  return { root, chapter };
+  );
+  await Promise.all(chapters.map(async (chapter) => {
+    await fs.writeFile(path.join(chapter, ".complete"), JSON.stringify({ pages: 6 }));
+    await Promise.all(Array.from({ length: 6 }, (_, index) =>
+      fs.writeFile(path.join(chapter, `${String(index + 1).padStart(3, "0")}.jpg`), image),
+    ));
+  }));
+  return { root, chapters };
 }
 
 async function main() {
   const fixture = await makeFixture();
+  const userData = await fs.mkdtemp(path.join(os.tmpdir(), "strip-reader-e2e-user-data-"));
+  app.setPath("userData", userData);
   app.whenReady().then(async () => {
     protocol.handle("strip-file", async (request) => {
       try {
@@ -59,8 +66,18 @@ async function main() {
       "config:set": () => true,
       "library:scan": () => scanLibrary(fixture.root),
       "chapter:pages": (_, chapterDir) => listChapterPages(chapterDir, fixture.root),
-      "progress:get": () => null,
-      "progress:all": () => ({}),
+      "progress:get": async (_, key) => {
+        if (key === "Sample Series/1") return 4;
+        if (key === "Sample Series/2") {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return 4;
+        }
+        return null;
+      },
+      "progress:all": () => ({
+        "Sample Series/1": 4,
+        "Sample Series/lastRead": { chapterNumber: 1, pageIndex: 4, totalPages: 6 },
+      }),
       "progress:savePosition": () => true,
       "schedule:get": () => ({}),
       "download:active": () => [],
@@ -92,11 +109,26 @@ async function main() {
     try {
       await window.loadFile(path.join(__dirname, "../../out/renderer/index.html"));
       await waitFor(window, "Boolean(document.querySelector('#view-library .series-card'))");
+      await waitFor(window, "Boolean(document.querySelector('.series-card-continue-button')) && document.querySelector('.series-card-hover-details')?.textContent.includes('2 chapters')");
       await window.webContents.executeJavaScript("document.querySelector('#view-library .series-card').click()");
       await waitFor(window, "Boolean(document.querySelector('#view-series .chapter-row'))");
-      await window.webContents.executeJavaScript("document.querySelector('#view-series .chapter-row').click()");
+      await window.webContents.executeJavaScript(
+        "document.querySelector('#view-series .btn-secondary').click()",
+      );
       await waitFor(window, "Boolean(document.querySelector('#view-reader'))");
       await waitFor(window, "Boolean(document.querySelector('#reader-pages img'))");
+      await waitFor(window, "document.querySelector('#reader-toolbar .reader-controls > span')?.textContent === '5 / 6'");
+      await window.webContents.executeJavaScript(
+        "document.querySelector('.reader-chapter-nav button:last-child').click()",
+      );
+      await waitFor(window, "document.querySelector('.reader-title-text')?.textContent.includes('Chapter 2')");
+      await waitFor(window, "document.querySelector('#reader-toolbar .reader-controls > span')?.textContent === '1 / 6' && document.querySelector('#reader-container')?.scrollTop < 10");
+      await waitFor(window, "Boolean(document.querySelector('#reader-pages img[alt=\"Page 1\"]'))");
+      await window.webContents.executeJavaScript(
+        "const container = document.querySelector('#reader-container'); container.scrollTop = container.scrollHeight; container.dispatchEvent(new Event('scroll', { bubbles: true }));",
+      );
+      await waitFor(window, "document.querySelector('#chapter-end-overlay')?.classList.contains('is-visible')");
+      await waitFor(window, "document.querySelector('#btn-end-next-chapter')?.disabled === true && getComputedStyle(document.querySelector('#btn-end-next-chapter')).opacity === '0.5'");
       await window.webContents.executeJavaScript(
         "document.querySelector('#view-reader .btn.btn-ghost').click()",
       );
@@ -109,7 +141,7 @@ async function main() {
       await window.webContents.executeJavaScript(
         "document.querySelector('[role=alertdialog] .btn-danger').click()",
       );
-      await waitFor(window, "!document.querySelector('#view-series .chapter-row')");
+      await waitFor(window, "document.querySelectorAll('#view-series .chapter-row').length === 1");
 
       await window.webContents.executeJavaScript(
         "document.querySelector('#view-series .back-btn').click()",
@@ -126,11 +158,13 @@ async function main() {
       console.log("reader smoke passed: library -> series -> reader -> page -> delete chapter -> delete series");
       window.destroy();
       await fs.rm(fixture.root, { recursive: true, force: true });
+      await fs.rm(userData, { recursive: true, force: true });
       app.exit(0);
     } catch (error) {
       console.error(error.stack || error);
       window.destroy();
       await fs.rm(fixture.root, { recursive: true, force: true });
+      await fs.rm(userData, { recursive: true, force: true });
       app.exit(1);
     }
   });

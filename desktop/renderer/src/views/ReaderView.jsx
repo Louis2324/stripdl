@@ -10,7 +10,8 @@ import { useConfig } from "../hooks/useConfig.js";
 import { updateLastReadPosition } from "../lib/readingProgress.js";
 import { createProgressDebouncer } from "../lib/progressDebouncer.mjs";
 import {
-  getVisiblePageIndex,
+  getVisiblePageIndexFromRects,
+  getPageIndexAtOffset,
   getReaderWindow,
   getWindowSpacerHeights,
 } from "../lib/readerWindow.mjs";
@@ -20,7 +21,10 @@ import {
   getAnchoredScrollTop,
   getReaderZoomStyle,
 } from "../lib/readerZoom.mjs";
-import { getReaderContentState } from "../lib/readerState.mjs";
+import {
+  getReaderContentState,
+  resolveReaderStartPage,
+} from "../lib/readerState.mjs";
 import { markPerf } from "../lib/perfMarks.mjs";
 import LoadingIndicator from "../components/LoadingIndicator.jsx";
 
@@ -63,7 +67,7 @@ function PageImage({ src, index, eager, loaded, wrapperRef, onFirstImage }) {
 export default function ReaderView({
   series,
   chapter,
-  scrollToPage = 0,
+  scrollToPage = null,
   onBack,
   onExitToLibrary,
   onNavigateChapter,
@@ -90,7 +94,7 @@ export default function ReaderView({
   const containerRef = useRef(null);
   const pageRefs = useRef([]);
   const observerRef = useRef(null);
-  const intersectingPagesRef = useRef(new Map());
+  const chapterChangingRef = useRef(false);
   const visibleIndexRef = useRef(visibleIndex);
   visibleIndexRef.current = visibleIndex;
   const zoomRef = useRef(zoom);
@@ -185,10 +189,12 @@ export default function ReaderView({
     let cancelled = false;
     if (!chapter) return;
 
+    chapterChangingRef.current = true;
     setLoading(true);
 
     // Immediately scroll back to top when switching chapters so we never
     // start mid-page on a fresh chapter.
+    visibleIndexRef.current = 0;
     if (containerRef.current) containerRef.current.scrollTop = 0;
 
     setPages([]);
@@ -196,17 +202,18 @@ export default function ReaderView({
     setVisibleIndex(0);
     setShowEndOverlay(false);
     setAutoScroll(false);
+    setStartPage(0);
     setLoadedSet(new Set());
     setPageHeights([]);
     preloadTriggeredRef.current = false;
     firstImageMarkedRef.current = false;
     pageRefs.current = [];
-    intersectingPagesRef.current.clear();
 
     (async () => {
       let filePaths = [];
       markPerf("chapter-pages-request-start");
-      let savedPagePromise = scrollToPage
+      const hasExplicitStartPage = scrollToPage !== null && scrollToPage !== undefined;
+      let savedPagePromise = hasExplicitStartPage
         ? Promise.resolve(scrollToPage)
         : window.strip.progress.get(progressKey).catch(() => 0);
       try {
@@ -218,6 +225,7 @@ export default function ReaderView({
         if (!cancelled) {
           setError(e.message || String(e));
           setLoading(false);
+          chapterChangingRef.current = false;
         }
         return;
       }
@@ -229,14 +237,28 @@ export default function ReaderView({
       setLoading(false);
 
       const sp = (await savedPagePromise) || 0;
-      const restoredPage = Math.max(0, Math.min(urls.length - 1, Number(sp) || 0));
+      const restoredPage = resolveReaderStartPage(
+        hasExplicitStartPage ? scrollToPage : null,
+        hasExplicitStartPage ? null : sp,
+        urls.length,
+      );
       if (!cancelled) {
         setStartPage(restoredPage);
+        visibleIndexRef.current = restoredPage;
         setVisibleIndex(restoredPage);
+        chapterChangingRef.current = false;
       }
 
       if (!useLazy) {
         setLoadedSet(new Set(urls.map((_, i) => i)));
+      } else {
+        // The restored page is rendered immediately so a delayed
+        // IntersectionObserver callback cannot leave the reader blank.
+        const first = Math.max(0, restoredPage - 1);
+        const last = Math.min(urls.length - 1, restoredPage + 1);
+        setLoadedSet(new Set(
+          Array.from({ length: last - first + 1 }, (_, i) => first + i),
+        ));
       }
     })();
 
@@ -278,14 +300,7 @@ export default function ReaderView({
       (entries) => {
         entries.forEach((entry) => {
           const idx = Number(entry.target.dataset.pageIndex);
-          if (!entry.isIntersecting) {
-            intersectingPagesRef.current.delete(idx);
-            return;
-          }
-          intersectingPagesRef.current.set(idx, {
-            index: idx,
-            top: entry.boundingClientRect.top - (entry.rootBounds?.top || 0),
-          });
+          if (!entry.isIntersecting) return;
 
           if (useLazy) {
             setLoadedSet((prev) => {
@@ -305,9 +320,6 @@ export default function ReaderView({
             preloadNextChapter();
           }
         });
-        setVisibleIndex(getVisiblePageIndex(
-          [...intersectingPagesRef.current.values()], visibleIndexRef.current,
-        ));
       },
       { root: containerRef.current, rootMargin: "500px 0px", threshold: 0 },
     );
@@ -354,11 +366,34 @@ export default function ReaderView({
     const container = containerRef.current;
     if (!container) return;
 
-    if (progressKey) {
+    const rootRect = container.getBoundingClientRect();
+    const pageRects = pageRefs.current.flatMap((element, index) => {
+      if (!element) return [];
+      const rect = element.getBoundingClientRect();
+      return [{ index, top: rect.top, bottom: rect.bottom }];
+    });
+    const viewportBottom = rootRect.top + container.clientHeight;
+    const hasVisiblePage = pageRects.some(
+      (rect) => rect.bottom > rootRect.top && rect.top < viewportBottom,
+    );
+    const nextVisibleIndex = hasVisiblePage
+      ? getVisiblePageIndexFromRects(
+        pageRects,
+        rootRect.top,
+        viewportBottom,
+        visibleIndexRef.current,
+      )
+      : getPageIndexAtOffset(container.scrollTop, pageHeights, pages.length);
+    if (nextVisibleIndex !== visibleIndexRef.current) {
+      visibleIndexRef.current = nextVisibleIndex;
+      setVisibleIndex(nextVisibleIndex);
+    }
+
+    if (progressKey && !chapterChangingRef.current) {
       progressDebouncerRef.current.schedule({
         seriesTitle: series.title,
         chapterNumber: chapter.number,
-        pageIndex: visibleIndex,
+        pageIndex: nextVisibleIndex,
         totalPages: pages.length,
       });
     }
@@ -370,7 +405,7 @@ export default function ReaderView({
       if (prev && distFromBottom > 180) return false;
       return prev;
     });
-  }, [progressKey, series, chapter, pages.length, visibleIndex]);
+  }, [progressKey, series, chapter, pages.length, pageHeights]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -492,6 +527,7 @@ export default function ReaderView({
         </button>
         <div className="reader-chapter-nav">
           <button
+            id="btn-prev-chapter"
             className="btn btn-ghost icon-btn"
             title="Previous chapter (P)"
             disabled={!hasPrev}
@@ -510,6 +546,7 @@ export default function ReaderView({
             {series.title} · Chapter {chapter.number}
           </span>
           <button
+            id="btn-next-chapter"
             className="btn btn-ghost icon-btn"
             title="Next chapter (N)"
             disabled={!hasNext}
@@ -665,6 +702,7 @@ export default function ReaderView({
           </div>
           <div className="chapter-end-actions">
             <button
+              id="btn-end-prev-chapter"
               className="btn btn-ghost"
               disabled={!hasPrev}
               onClick={() => onNavigateChapter(-1)}
@@ -696,6 +734,7 @@ export default function ReaderView({
               Chapter list
             </button>
             <button
+              id="btn-end-next-chapter"
               className="btn btn-primary"
               disabled={!hasNext}
               onClick={() => onNavigateChapter(1)}

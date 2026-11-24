@@ -404,7 +404,7 @@ select {
   contain-intrinsic-size: 320px 410px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   animation: fadeUp 0.3s ease both;
 }
 
@@ -449,12 +449,14 @@ select {
 }
 
 .series-card-title {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text);
   line-height: 1.3;
   overflow: hidden;
   display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   transition: color 0.15s;
 }
 .series-card:hover .series-card-title {
@@ -464,18 +466,66 @@ select {
 .series-card-meta {
   font-size: 11.5px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.series-card-badge {
+.series-card-hover-details {
   position: absolute;
-  bottom: 6px;
-  right: 6px;
-  background: rgba(0, 0, 0, 0.65);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding: 26px 8px 9px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.86));
   color: #fff;
-  font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 100px;
-  backdrop-filter: blur(4px);
+  font-size: 10.5px;
+  line-height: 1.2;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.series-card:hover .series-card-hover-details,
+.series-card:focus-within .series-card-hover-details {
+  opacity: 1;
+  transform: none;
+}
+
+.series-card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.series-card-stat svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.series-card-last-read {
+  color: rgba(255, 255, 255, 0.78);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (hover: none) {
+  .series-card-hover-details {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ── Empty state ─────────────────────────────────────────── */
@@ -805,9 +855,19 @@ select {
 }
 
 #btn-prev-chapter:disabled,
-#btn-next-chapter:disabled {
-  opacity: 0.25;
-  cursor: default;
+#btn-next-chapter:disabled,
+#btn-end-prev-chapter:disabled,
+#btn-end-next-chapter:disabled,
+#btn-prev-chapter:disabled:hover,
+#btn-next-chapter:disabled:hover,
+#btn-end-prev-chapter:disabled:hover,
+#btn-end-next-chapter:disabled:hover {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: not-allowed;
   pointer-events: none;
 }
 
@@ -938,13 +998,6 @@ select {
 .chapter-end-actions .btn svg {
   width: 16px;
   height: 16px;
-}
-
-#btn-end-prev-chapter:disabled,
-#btn-end-next-chapter:disabled {
-  opacity: 0.3;
-  cursor: default;
-  pointer-events: none;
 }
 
 /* ── Shared input (used in tray) ─────────────────────────── */
@@ -1369,44 +1422,19 @@ select {
   background: var(--text-muted);
 }
 
-/* ── Latest Read Chapter Badge ──────────────────────────── */
-.series-card-latest-badge {
-  position: absolute;
-  bottom: 28px; /* sit just above the progress bar */
-  left: 6px;
-  background: rgba(20, 20, 30, 0.78);
-  color: #a8e6cf;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 100px;
-  backdrop-filter: blur(6px);
-  z-index: 20;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border: 1px solid rgba(168, 230, 207, 0.3);
-  font-family: var(--font-body);
-  pointer-events: none;
-  white-space: nowrap;
-  transition: opacity 0.2s ease;
-}
-
-[data-theme="dark"] .series-card-latest-badge {
-  background: rgba(168, 230, 207, 0.18);
-  color: #a8e6cf;
-  border-color: rgba(168, 230, 207, 0.4);
-}
-
 /* ── Continue Reading ────────────────────────────────────── */
-.series-card-continue-badge {
+.series-card-continue-button {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  background: var(--steel);
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(20, 20, 30, 0.82);
   color: white;
   font-size: 10px;
-  font-weight: 600;
-  padding: 4px 10px;
+  font-weight: 700;
+  padding: 5px 9px;
   border-radius: 100px;
   backdrop-filter: blur(4px);
   cursor: pointer;
@@ -1414,27 +1442,46 @@ select {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  transition: all 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   border: 1px solid rgba(255, 255, 255, 0.2);
   font-family: var(--font-body);
   pointer-events: auto;
 }
 
-.series-card-continue-badge:hover {
+.series-card-continue-button svg {
+  width: 11px;
+  height: 11px;
+}
+
+.series-card-continue-chapter {
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.series-card-continue-button:hover {
   background: var(--steel-dark);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-.series-card-continue-badge:active {
+.series-card-continue-button:active {
   transform: translateY(0);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-[data-theme="dark"] .series-card-continue-badge {
+[data-theme="dark"] .series-card-continue-button {
   background: var(--steel-light);
   color: #000;
   border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .series-card-continue-chapter {
+  color: rgba(0, 0, 0, 0.68);
 }
 
 .chapter-row.last-read {
