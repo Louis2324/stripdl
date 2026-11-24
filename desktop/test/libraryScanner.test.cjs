@@ -61,5 +61,8 @@ test("rebuilds the index when a chapter directory changes", async (t) => {
   const refreshed = await scanLibrary(root);
 
   assert.equal(refreshed[0].chapters[0].pageCount, 17);
-  assert.equal(refreshed[0].chapters[0].directory, path.join(root, "A", "001"));
+  assert.equal(
+    refreshed[0].chapters[0].directory,
+    await fs.realpath(path.join(root, "A", "001")),
+  );
 });

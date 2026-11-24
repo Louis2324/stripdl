@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run -a npm run test:e2e
+            xvfb-run -a npm run test:e2e -- --no-sandbox
           else
             npm run test:e2e
           fi
