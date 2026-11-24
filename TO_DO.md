@@ -1,308 +1,235 @@
-# stripdl Work Tracker
+# Strip Work Tracker
 
-This file tracks the current state of the v0.4.0 work and the next items to
-address.
+This is a maintainer working note, not the authoritative project backlog. GitHub
+Issues are the source of truth for work that is ready to implement. Keep one
+coherent objective per issue/branch and target normal pull requests at `dev`.
 
-## Delivery roadmap
+## Current release state
 
-| Pass | Scope | Status |
-| ---- | ----- | ------ |
-| Pass 0 | Previously shipped CLI, downloader, reader, provider, and release foundation | Completed history |
-| Pass 1 | Provider and reliability completion: native Comix support, Asura encoding, failed-download recovery, provider discovery, and focused coverage | Planned |
-| Pass 2 | Startup, reader, library, package-size, and release optimization | Implementation complete; release gates pending |
-| Pass 3 | Reader and desktop UX: auto-scroll and broader end-to-end interaction coverage | Planned |
-| Pass 4 | Branded, data-safe Windows NSIS uninstaller | Planned for a later release |
-| Pass 5 | Account-free PC/mobile QR synchronization | Planned |
+| Area | Status |
+| --- | --- |
+| CLI, downloader, local library, and Electron reader | Shipped through `v0.5.3` |
+| Provider registration and core reliability | Implemented, including native Comix and failed-download recovery |
+| Startup, reader, package-size, and updater optimization | Implemented through the `v0.5.3` baseline; measurement and smoke evidence are tracked here |
+| Windows installer branding | Safe custom uninstaller behavior implemented; physical cross-architecture smoke remains |
+| Mobile synchronization | Future work |
 
-Only Pass 2 is being implemented in the current optimization branch. The other
-passes remain separate so provider features, reader UX, mobile sync, and installer
-changes can be reviewed and released independently.
+## Shipped and no longer pending
 
-## Versioning and release policy
+- Webtoon, WeebCentral, Asura Scans, native Comix, and MangaKakalot registration.
+- `stripdl list`, library scanning, resumable downloads, retry policies, and
+  persisted failed-download records.
+- UTF-8 metadata/output handling and malformed-metadata tolerance.
+- Secure `strip-file://` image serving with library/chapter path checks and
+  symlink protection.
+- React/Electron reader with bounded page mounting, progress persistence,
+  chapter navigation, zoom controls, and optional next-chapter preloading.
+- Cache-first library rendering, bounded filesystem work, bulk progress reads,
+  and parallel chapter enumeration.
+- Electron package trimming, English-only locale packaging, controlled
+  PyInstaller packaging, and release artifact verification.
+- Packaged-app update checks and GitHub Releases for Windows, macOS, and Linux.
+- Branded installer assets and a data-safe Windows NSIS uninstaller with running-app detection.
+- `v0.5.2` optimization release and `v0.5.3` reader image-loading fix.
 
-- Keep the shared version at `0.5.1` while Pass 2 is being developed and tested;
-  do not create a version bump for intermediate commits, measurements, or docs.
-- Ship the completed backward-compatible Pass 2 optimization work as `0.5.2`.
-- Before tagging `v0.5.2`, synchronize `VERSION`, Python package/runtime metadata,
-  Electron `package.json`, the lockfile, tests, and changelog with
-  `python scripts/sync_version.py --version 0.5.2` and its validation command.
-- Publish `v0.5.2` only after the size, startup, reader, updater, and packaged-app
-  gates in Pass 2 pass on the supported release matrix.
-- Treat the branded uninstaller as a separate user-facing release feature,
-  targeted for the next minor release after the optimization work (`0.6.0` unless
-  maintainers explicitly choose a different release boundary).
-- Keep unreleased work in the changelog until its implementation and release
-  artifacts are verified.
+## Priority 0 — repository and release hygiene
 
-## Provider support
+These items make the project ready for outside contributors before adding more
+large features.
 
-| Provider     | Current state | Notes                                                          |
-| ------------ | ------------- | -------------------------------------------------------------- |
-| Webtoon      | Implemented   | Registered parser.                                             |
-| WeebCentral  | Implemented   | Registered parser.                                             |
-| Asura Scans  | Implemented   | Listing works; download output still has an encoding issue.    |
-| MangaKakalot | Implemented   | Registered parser.                                             |
-| Comix        | Partial       | Registered, but currently resolves titles through WeebCentral. |
+- [x] Correct old `ZLouisMiguel` repository URLs in README and CONTRIBUTING.
+- [x] Make CONTRIBUTING agree with the `dev` integration-branch workflow.
+- [x] Remove duplicate changelog entries and keep release notes human-readable.
+- [x] Add GitHub bug-report and feature-request issue forms.
+- [x] Add a pull-request template with scope, tests, screenshots, and limitations.
+- [x] Add `CODE_OF_CONDUCT.md` and a clear enforcement contact.
+- [x] Add `SECURITY.md` with private vulnerability-reporting instructions.
+- [x] Add `.github/CODEOWNERS` for core, desktop, release, and security-sensitive
+  files.
+- [x] Protect `main` and `dev` with required CI checks and review requirements.
+- [x] Add repository topics, a useful description, and a homepage/release link.
+- [x] Review and archive stale branches after confirming they contain no unique work;
+  fully merged release/fix branches were removed from the remote.
+- [x] Move implementation-ready follow-up work into GitHub Issues; physical
+  installer coverage is tracked as issue #1.
 
-## Fixes and reliability — Pass 1
+## Pass 1 — provider and reliability completion
 
-### Completed
+### Failed-download recovery
 
-- Added provider registration for Webtoon, WeebCentral, Comix, Asura Scans,
-  and MangaKakalot.
-- Added the `stripdl list` flow for displaying series information and chapters.
-- Added readable failure messages for list and library operations instead of
-  exposing tracebacks.
-- Added UTF-8 CLI stream configuration and safe rendering for dynamic metadata
-  on Windows consoles.
-- Made invalid series metadata non-fatal during library scans.
-- Added retry policies for parser/image requests and persisted failed download
-  URLs in `.failed-downloads.json` for later retries.
+- [x] Persist failed image/chapter URLs in `.failed-downloads.json`.
+- [x] Add a user-facing CLI command or desktop flow to review failed entries.
+- [x] Allow retrying selected entries without restarting an unrelated download.
+- [x] Add tests for malformed records, missing files, retry success, and retry
+  failure reporting.
 
-### In progress / partial
+### Provider discovery
 
-- Comix support exists, but it is not independent. `ComixParser` currently
-  searches WeebCentral for the matching title. A Comix title that is missing
-  from WeebCentral cannot be resolved.
-- Asura Scans metadata and chapter listing work, but some author text is
-  displayed with broken encoding.
+- [x] Register the currently supported providers.
+- [x] Support `stripdl list <url>`.
+- [x] Add `stripdl show providers` with names, URL patterns, and availability
+  notes.
+- [x] Add dedicated parser tests for every provider's URL detection and core
+  metadata/chapter/image behavior.
 
-### Outstanding
+### Asura Scans
 
-- Add a user-facing command or UI flow for reviewing and retrying entries from
-  `.failed-downloads.json`.
+- [x] Decode the site's UTF-8 HTML from response bytes instead of relying on a
+  missing/incorrect response charset.
+- [x] Add a live-fixture or recorded-fixture regression test for non-ASCII
+  author/title metadata.
 
-## Planned features — Passes 1, 3, and 5
+### Comix
 
-### Pass 5 — Mobile synchronization
+- [x] Replace the current cross-provider adapter with a native Comix parser; it
+  stays on the Comix origin and reports protected-session limitations.
+- [x] Add fixture-based tests for Comix title canonicalization, metadata,
+  chapter pagination, fractional chapter numbers, image URLs, and unavailable
+  titles.
+- [x] Make failures caused by unavailable/challenge-protected Comix data
+  actionable instead of silently returning WeebCentral data for the wrong title.
 
-- Since we're planning on making a mobile version and we want the sync of projects to be without the use of an account, we'll do it via qr codes , you'll scan a transfer qr code and then after that you'll have all of your comics that were on pc be sent like a json to your phone, containing details about the series name, it's url and it's provider and then you'll download them onto the phone. ( Think about the reverse path way , phone to pc how to communicate, also think about whether the qr code should contain just that or contain other info that could help syncing them later on)
+See the Comix investigation below before implementation.
 
-### Pass 1 — Provider discovery
+## Comix investigation and implementation decision
 
-#### Completed
+### Why the current code is redundant
 
-- Added support for the `stripdl list <url>` command.
+Two independent implementations were created on 2026-09-23:
 
-#### Outstanding
+1. `2f1e5d4` added the current adapter. It extracts the Comix title, searches
+   WeebCentral, and delegates metadata, chapters, and images to the WeebCentral
+   parser.
+2. `49af489` independently added a direct Comix implementation based on HTML and
+   a guessed `/api/v2` chapters endpoint.
 
-- Add a native Comix parser that obtains Comix metadata, chapters, and images
-  directly instead of depending on WeebCentral. Keep the WeebCentral bridge
-  only as an optional fallback if useful.
-- Add `stripdl show providers` to display all available comic and webtoon
-  providers instantly.
+The later merge of those branches retained the first implementation's adapter
+file while taking the unrelated reader changes from the other branch. There is
+no commit or issue recording a deliberate architecture decision. The current
+redundancy is therefore historical merge/contribution overlap, not a useful
+two-layer runtime design.
 
-### Pass 3 — Reader UX
+### What the research indicates
 
-#### Outstanding
+- The old direct implementation's `/api/v2` assumption is not a safe foundation.
+  Current integrations observe `/api/v1/manga/{id}/chapters` instead.
+- Title details are available through the Comix page's embedded initial data,
+  while chapter data is loaded dynamically.
+- Current chapter responses may be signed/encrypted and image hosts can require
+  the Comix referer. Other clients also report browser/session or challenge
+  requirements.
+- A direct parser must therefore follow the currently observable public site
+  flow and treat endpoint versions, payload shapes, and challenge pages as
+  changeable. It must not silently substitute a similarly named title from
+  another provider.
 
-- Investigate and design an auto-scroll feature.
+### Safe native-parser plan
 
-## Performance — Pass 2
+- [x] Capture small, versioned parser fixtures for representative Comix page
+  and document which fields are stable enough to parse.
+- [x] Parse the canonical title identifier and embedded metadata first.
+- [x] Implement chapter discovery against the currently supported public flow,
+  with pagination, deduplication, ordering, and clear unavailable/challenge
+  errors.
+- [x] Extract page URLs from the Comix response without hardcoding an image host;
+  preserve the required request headers through the existing downloader contract.
+- [x] Do not silently cross-provider resolve Comix titles.
+- [x] Do not bypass access controls or challenge mechanisms; document when Comix
+  cannot be downloaded without an interactive browser/session.
+- [x] Add rate limits, retries, and fixture tests before enabling the native
+  parser by default.
 
-### Outstanding
+### Native-parser acceptance criteria
 
-- Reduce initial loading time to under one second where possible, including
-  when the local library contains many downloaded series.
-- Identify whether library scanning or another startup task is responsible for
-  the current loading delay before optimizing it.
+- Metadata, chapter URLs, and page URLs all originate from Comix for a test title.
+- No WeebCentral request occurs on the native path.
+- Chapter ordering preserves fractional values and does not duplicate pages.
+- Missing, blocked, malformed, and challenge-protected responses produce useful
+  errors and never report a false successful download.
+- Core tests pass and at least one packaged CLI smoke test exercises provider
+  registration without requiring live-site access.
 
-## Optimization and packaging — Pass 2
+## Pass 2 follow-up — performance and size evidence
 
-The implementation plan and safety constraints for this work are documented in
-[the optimization and uninstaller design spec](docs/superpowers/specs/2026-11-17-strip-optimization-and-uninstaller-design.md).
+The implementation shipped in `v0.5.2`; the remaining work is measurement and
+optional follow-up, not another untracked optimization pass.
 
-### Size
+- [x] Add development-only timing marks for startup, library visibility,
+  chapter enumeration, and first reader image.
+- [x] Record cold start with an empty library.
+- [x] Record warm start with a cached library.
+- [x] Record cold start with a large library.
+- [x] Record short, medium, and long local chapters.
+- [x] Record resume at first, middle, and final page.
+- [x] Record installer size, extracted install size, `app.asar`, bundled CLI,
+  Electron locales, and differential-update sizes where available.
+- [x] Rebuild the supported local Windows target and publish a comparison
+  report with the release evidence.
+- [x] Add packaged-reader smoke coverage for opening pages and the destructive
+  library flows (chapter and series deletion).
+- [x] Keep reading-position restore, chapter navigation, and updater behavior
+  covered by focused desktop tests.
+- [ ] Exercise update installation against a published release in a disposable
+  environment; this remains part of issue #1's release-gate follow-up.
+- [x] Add a versioned, rebuildable local library index; it falls back to a full
+  scan when the fingerprint changes.
 
-- Establish a repeatable installer and installed-size baseline for each supported
-  platform and architecture.
-- Keep only the required Electron locale files in packaged builds.
-- Audit the bundled PyInstaller CLI, remove verified-unused imports, and compare
-  safe compression and one-file/one-directory packaging options.
-- Tighten packaged file inclusion without removing runtime files, update metadata,
-  or diagnostics needed for support.
-- Rebuild release artifacts and record installer, installed, and differential-update
-  size changes before shipping an optimization.
+## Pass 3 — reader UX
 
-### App functionality and startup performance
+- [x] Investigate and design auto-scroll with explicit speed, pause/resume,
+  keyboard, and accessibility behavior.
+- [x] Implement auto-scroll with explicit speed controls and keyboard access.
+- [x] Add end-to-end coverage for library loading, opening a series, loading
+  reader pages, deleting a chapter, deleting a series, and resulting UI state.
 
-- Add development-only timing instrumentation for app startup, library loading,
-  chapter path enumeration, and first reader image display.
-- Remove the reader's serial per-page path-validation wait while preserving the
-  `strip-file` protocol's path-safety checks and symlink protections.
-- Make cached library data render immediately, then refresh stale data in the
-  background.
-- Reduce library-scan filesystem work and replace per-series progress IPC calls
-  with a bounded bulk operation where measurement confirms the benefit.
-- Bundle or replace remote startup fonts so the reader does not depend on a
-  network request for its initial presentation.
-- Add regression coverage and compare cold-start, warm-start, and large-library
-  results before and after each change.
+## Pass 4 — safe Windows uninstaller
 
-### Installer and uninstaller — Pass 4, later release
+The branded NSIS assets and custom welcome surface exist. The safe uninstall
+behavior is implemented; physical installer coverage remains a release-gate
+follow-up.
 
-- Design and ship a branded Windows NSIS uninstaller experience.
-- Preserve the configured comic library and downloaded files by default.
-- If app-data cleanup is offered, make it explicit, separately confirmed, and
-  limited to Strip settings/cache data rather than the user-selected library.
-- Verify install, upgrade, uninstall, cancel, shortcut removal, x64, and ARM64
-  behavior before publishing the change.
+- [x] Keep the standard electron-builder uninstall registration and lifecycle.
+- [x] Add clear Strip removal language and running-app detection with an
+  actionable message.
+- [x] Remove installed binaries, shortcuts, and uninstall metadata through the
+  standard electron-builder lifecycle.
+- [x] Leave the configured comic library and downloaded chapters untouched.
+- [x] Do not offer app-data cleanup until a separate, explicit cleanup contract
+  and confirmation flow is approved.
+- [x] Make cancellation and failure recoverable through the standard NSIS flow.
+- [x] Add static checks for the NSIS customization.
+- [ ] Smoke-test fresh install, upgrade, launch, external library configuration,
+  uninstall with and without cleanup, cancellation, shortcut removal, x64, and
+  ARM64; tracked in issue #1 because the local environment cannot safely run the
+  full cross-architecture installer matrix.
 
-### Safety constraints for all optimization work
+## Pass 5 — account-free mobile synchronization
 
-- Measure before changing behavior; compare before and after results on the same
-  fixtures and build type.
-- Preserve `assertLibraryPath`, `assertChapterPath`, the `strip-file` protocol,
-  and symlink protections when moving filesystem work.
-- Never delete, move, or rewrite the configured comic library as part of an
-  optimization or uninstall operation without explicit user action.
-- Keep changes small and independently reversible, with focused tests and a
-  production build check for every slice.
-- Do not make network access a requirement for startup, reading, or the bundled
-  downloader.
-- Do not commit `desktop/out`, `desktop/release`, PyInstaller output, or local
-  diagnostics/build state.
+- [ ] Define a versioned transfer schema for series title, canonical URL,
+  provider, local progress, and downloaded-state metadata.
+- [ ] Use a short-lived, authenticated QR transfer handoff rather than placing
+  all library data directly in a reusable QR code.
+- [ ] Design both PC-to-phone and phone-to-PC flows, including duplicate and
+  conflict handling.
+- [ ] Keep downloaded image data out of the QR payload; transfer metadata first
+  and let the receiving device download or pair locally.
+- [ ] Add explicit user confirmation and an export/import backup path.
 
-### Baseline and diagnostics checklist
+## Release gates
 
-- [x] Add development-only monotonic timing marks for:
-  `app-ready`, `renderer-dom-ready`, `library-request-start`,
-  `library-response`, `library-visible`, `chapter-pages-request-start`,
-  `chapter-pages-response`, and `first-reader-image`.
-- [x] Keep diagnostics local to the development console or an opt-in log; do
-  not upload or persist personal analytics.
-- [ ] Measure cold start with an empty library.
-- [ ] Measure warm start with a cached library.
-- [ ] Measure cold start with a large library.
-- [ ] Measure short, medium, and long local chapters.
-- [ ] Measure resume at the first, middle, and final page.
-- [ ] Record installer size, extracted install size, `app.asar` size, bundled
-  CLI size, Electron locale size, and differential-update size where available.
+- [x] Keep each new feature or fix in an isolated, reviewable commit/PR.
+- [x] Add focused regression tests before or alongside implementation.
+- [x] Do not publish a release that breaks page loading, reading position,
+  updating, or preservation of the comic library.
+- [x] Confirm core tests, desktop tests, production builds, release-asset checks,
+  and packaged-app smoke tests pass.
+- [x] Confirm documentation and the changelog describe only shipped behavior.
+- [x] Record remaining limitations in GitHub Issues or the release notes (issue
+  #1 covers physical installer/update validation; Comix session limitations are
+  documented above and in the parser errors).
 
-### Reader first-page implementation design
+## Historical manual-testing notes
 
-- [x] Validate the requested chapter directory once.
-- [x] Read, filter, and sort page names using the existing ordering rules.
-- [x] Return safe paths or opaque page identifiers without serially resolving
-  every page before the first render.
-- [x] Continue validating every actual file request in the `strip-file`
-  protocol.
-- [ ] If constructed paths are not sufficient for symlink safety, use bounded
-  parallel validation or opaque main-process-resolved identifiers instead of
-  weakening the path boundary.
-- [ ] Test normal ordering, fractional chapter paths, missing chapters, missing
-  pages, symlink escape attempts, malformed roots, and cancelled chapter loads.
-- [x] Request saved progress in parallel with
-  page enumeration.
-- [x] Use high-priority/asynchronous decoding for the
-  first visible page.
-- [x] Keep the mounted reader window bounded.
-- [x] Avoid recomputing spacer geometry across every page on every scroll.
-- [x] Keep next-chapter preloading behind its preference and outside the
-  first-page critical path.
-
-### Library loading implementation design
-
-- [x] Render valid cached library data immediately when available, then
-  revalidate it in the background.
-- [x] Keep explicit refresh as the force-refresh path.
-- [x] Preserve usable cached data if a background refresh fails.
-- [x] Avoid duplicate path resolution after a parent directory is validated.
-- [x] Keep asynchronous filesystem work bounded rather than launching
-  unbounded work for every chapter.
-- [x] Avoid counting every image on the critical path when a trustworthy
-  chapter manifest already contains the page count.
-- [x] Preserve malformed-metadata tolerance and fractional chapter ordering.
-- [ ] If scanning remains dominant, add a versioned, rebuildable local library
-  index with fallback to a full scan when its version or root path differs.
-- [x] Replace per-series progress IPC requests with one bounded bulk request
-  while keeping existing progress keys compatible.
-
-### Package-size implementation design
-
-- [x] Set `electronLanguages` to the locales Strip actually supports; initially
-  evaluate an English-only package because the current UI has no localization
-  layer.
-- [x] Review `files`/`fileOptions` and exclude verified non-runtime files such
-  as source maps, tests, and development metadata without removing support
-  diagnostics required by the packaged app.
-- [x] Keep ASAR packaging enabled unless a runtime requirement proves a file
-  must be unpacked.
-- [x] Preserve updater manifests, icons, `extraResources/strip-cli`, and other
-  target-specific runtime files.
-- [x] Create a controlled PyInstaller build configuration.
-- [x] Audit the CLI import graph and hidden imports instead of deleting
-  dependencies by guesswork.
-- [x] Keep Pillow and lxml unless replacement tests prove their functionality is
-  no longer needed; both are currently used by the downloader/parsers.
-- [x] Evaluate verified optional-module excludes and Windows UPX compression; keep
-  one-file packaging for the self-contained CLI.
-- [x] Keep the CLI self-contained in the packaged desktop app and usable offline.
-- [x] Do not make first-run CLI downloading part of the initial size change.
-- [ ] Rebuild every supported release target and record installer, installed,
-  and differential-update size changes before accepting an optimization.
-
-### Windows uninstaller implementation design
-
-- [ ] Start with the Windows NSIS target; retain native removal semantics for
-  macOS DMG/ZIP and Linux AppImage/deb unless separately designed.
-- [ ] Extend the existing electron-builder NSIS customization in
-  `desktop/installer/assets/windows/installer.nsh` instead of introducing a
-  second uninstaller executable.
-- [ ] Keep the standard electron-builder uninstall registration and lifecycle.
-- [ ] Add Strip branding and clear removal language.
-- [ ] Stop or refuse removal while Strip is running, with an actionable message.
-- [ ] Remove installed binaries, shortcuts, and uninstall metadata.
-- [ ] Leave the configured comic library and downloaded chapters untouched.
-- [ ] If cleanup is offered, limit it to explicitly identified app-owned
-  settings/cache paths under Electron's user-data location.
-- [ ] Keep cleanup disabled by default and require a separate confirmation.
-- [ ] Never infer that the configured download directory is disposable app data.
-- [ ] Make cancellation and failure recoverable and visible.
-- [ ] Add static checks for the NSIS customization.
-- [ ] Smoke-test install, launch, configure-library, uninstall-without-cleanup,
-  uninstall-with-cleanup, cancellation, shortcut removal, x64, ARM64, and
-  upgrade-then-uninstall flows.
-
-### Rollback and release gates
-
-- [ ] Keep each optimization in an isolated commit so regressions can be
-  reverted without undoing unrelated work.
-- [ ] Retain a small internal fallback for old reader/scanner behavior until
-  packaged-app tests pass.
-- [ ] Do not publish a smaller release that fails to open pages, preserve reading
-  position, update correctly, or preserve the comic library.
-- [ ] Confirm startup and first-page timings improve on agreed fixtures.
-- [ ] Confirm core tests, desktop tests, production builds, release-asset checks,
-  and packaged-reader smoke tests pass.
-- [ ] Confirm updater manifests and differential updates remain valid.
-- [ ] Confirm the uninstaller preserves comic downloads by default.
-- [ ] Update documentation and changelog to match only the behavior actually
-  shipped.
-
-## Notes from v0.4.0 testing
-
-- `stripdl list` successfully returned series information and chapter lists for
-  tested Asura Scans URLs.
-- Downloading `SSS-Class Suicide Hunter` from Asura Scans failed with the
-  Windows `charmap` encoding error above.
-- Pasting a Markdown link such as
-  `[https://example.com](https://example.com)` into the CLI passes the Markdown
-  text as input; commands should receive the raw URL instead.
-
-## Verification audit — 2026-10-04
-
-### Resolved in the current fix pass
-
-- `stripdl --help` no longer crashes on Windows `cp1252` consoles.
-- `stripdl library` tolerates invalid or non-UTF-8 series metadata.
-- `stripdl list` preserves non-ASCII metadata when the CLI configures UTF-8
-  output.
-
-### Coverage gaps by pass
-
-- Pass 2/3: Add end-to-end desktop tests for the actual React/Electron interactions:
-  library loading, opening a series, loading reader pages, deleting a chapter,
-  deleting a series, and confirming the resulting UI state.
-- Pass 1: Add dedicated Comix parser tests. Current Comix support is only an adapter to
-  WeebCentral and has no independent parser behavior to verify.
+- Markdown links pasted into the CLI are input text; commands require the raw URL.
+- Live provider behavior is external and may change independently of Strip. Use
+  recorded fixtures for deterministic tests and live checks only as smoke tests.

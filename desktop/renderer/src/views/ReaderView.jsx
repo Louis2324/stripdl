@@ -10,7 +10,8 @@ import { useConfig } from "../hooks/useConfig.js";
 import { updateLastReadPosition } from "../lib/readingProgress.js";
 import { createProgressDebouncer } from "../lib/progressDebouncer.mjs";
 import {
-  getVisiblePageIndex,
+  getVisiblePageIndexFromRects,
+  getPageIndexAtOffset,
   getReaderWindow,
   getWindowSpacerHeights,
 } from "../lib/readerWindow.mjs";
@@ -20,7 +21,14 @@ import {
   getAnchoredScrollTop,
   getReaderZoomStyle,
 } from "../lib/readerZoom.mjs";
-import { getReaderContentState } from "../lib/readerState.mjs";
+import {
+  getReaderContentState,
+  resolveReaderStartPage,
+} from "../lib/readerState.mjs";
+import {
+  getNextAutoScrollTop,
+  isAutoScrollScrollEvent,
+} from "../lib/autoScroll.mjs";
 import { markPerf } from "../lib/perfMarks.mjs";
 import LoadingIndicator from "../components/LoadingIndicator.jsx";
 
@@ -63,7 +71,7 @@ function PageImage({ src, index, eager, loaded, wrapperRef, onFirstImage }) {
 export default function ReaderView({
   series,
   chapter,
-  scrollToPage = 0,
+  scrollToPage = null,
   onBack,
   onExitToLibrary,
   onNavigateChapter,
@@ -79,6 +87,8 @@ export default function ReaderView({
   const [pageHeights, setPageHeights] = useState([]);
   const [zoom, setZoom] = useState(1);
   const [zoomLocked, setZoomLocked] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(false);
+  const [autoScrollSpeed, setAutoScrollSpeed] = useState(1);
   const firstImageMarkedRef = useRef(false);
 
   const ZOOM_MIN = 0.5;
@@ -88,7 +98,7 @@ export default function ReaderView({
   const containerRef = useRef(null);
   const pageRefs = useRef([]);
   const observerRef = useRef(null);
-  const intersectingPagesRef = useRef(new Map());
+  const chapterChangingRef = useRef(false);
   const visibleIndexRef = useRef(visibleIndex);
   visibleIndexRef.current = visibleIndex;
   const zoomRef = useRef(zoom);
@@ -96,6 +106,14 @@ export default function ReaderView({
   const zoomLockedRef = useRef(zoomLocked);
   zoomLockedRef.current = zoomLocked;
   const zoomAnchorRef = useRef(null);
+  const autoScrollRef = useRef(autoScroll);
+  autoScrollRef.current = autoScroll;
+  const autoScrollMarkerRef = useRef(null);
+
+  function pauseAutoScroll() {
+    autoScrollMarkerRef.current = null;
+    if (autoScrollRef.current) setAutoScroll(false);
+  }
 
   function captureZoomAnchor() {
     const container = containerRef.current;
@@ -159,30 +177,70 @@ export default function ReaderView({
   }, [progressKey]);
 
   useEffect(() => {
+    if (!autoScroll) return undefined;
+    let frame;
+    let previous = null;
+    const tick = (now) => {
+      const container = containerRef.current;
+      if (!container) return;
+      if (previous === null) previous = now;
+      const elapsed = Math.min(now - previous, 64);
+      previous = now;
+      const { nextTop, atEnd } = getNextAutoScrollTop({
+        scrollTop: container.scrollTop,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        speed: autoScrollSpeed,
+        elapsedMs: elapsed,
+      });
+      if (atEnd && nextTop <= container.scrollTop) {
+        setAutoScroll(false);
+        return;
+      }
+      autoScrollMarkerRef.current = {
+        top: nextTop,
+        expiresAt: performance.now() + 120,
+      };
+      container.scrollTop = nextTop;
+      if (atEnd) {
+        setAutoScroll(false);
+        return;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [autoScroll, autoScrollSpeed]);
+
+  useEffect(() => {
     let cancelled = false;
     if (!chapter) return;
 
+    chapterChangingRef.current = true;
     setLoading(true);
 
     // Immediately scroll back to top when switching chapters so we never
     // start mid-page on a fresh chapter.
+    visibleIndexRef.current = 0;
     if (containerRef.current) containerRef.current.scrollTop = 0;
 
     setPages([]);
     setError(null);
     setVisibleIndex(0);
     setShowEndOverlay(false);
+    setAutoScroll(false);
+    setStartPage(0);
     setLoadedSet(new Set());
     setPageHeights([]);
     preloadTriggeredRef.current = false;
     firstImageMarkedRef.current = false;
     pageRefs.current = [];
-    intersectingPagesRef.current.clear();
 
     (async () => {
       let filePaths = [];
       markPerf("chapter-pages-request-start");
-      let savedPagePromise = scrollToPage
+      const hasExplicitStartPage = scrollToPage !== null && scrollToPage !== undefined;
+      let savedPagePromise = hasExplicitStartPage
         ? Promise.resolve(scrollToPage)
         : window.strip.progress.get(progressKey).catch(() => 0);
       try {
@@ -194,6 +252,7 @@ export default function ReaderView({
         if (!cancelled) {
           setError(e.message || String(e));
           setLoading(false);
+          chapterChangingRef.current = false;
         }
         return;
       }
@@ -205,14 +264,28 @@ export default function ReaderView({
       setLoading(false);
 
       const sp = (await savedPagePromise) || 0;
-      const restoredPage = Math.max(0, Math.min(urls.length - 1, Number(sp) || 0));
+      const restoredPage = resolveReaderStartPage(
+        hasExplicitStartPage ? scrollToPage : null,
+        hasExplicitStartPage ? null : sp,
+        urls.length,
+      );
       if (!cancelled) {
         setStartPage(restoredPage);
+        visibleIndexRef.current = restoredPage;
         setVisibleIndex(restoredPage);
+        chapterChangingRef.current = false;
       }
 
       if (!useLazy) {
         setLoadedSet(new Set(urls.map((_, i) => i)));
+      } else {
+        // The restored page is rendered immediately so a delayed
+        // IntersectionObserver callback cannot leave the reader blank.
+        const first = Math.max(0, restoredPage - 1);
+        const last = Math.min(urls.length - 1, restoredPage + 1);
+        setLoadedSet(new Set(
+          Array.from({ length: last - first + 1 }, (_, i) => first + i),
+        ));
       }
     })();
 
@@ -254,14 +327,7 @@ export default function ReaderView({
       (entries) => {
         entries.forEach((entry) => {
           const idx = Number(entry.target.dataset.pageIndex);
-          if (!entry.isIntersecting) {
-            intersectingPagesRef.current.delete(idx);
-            return;
-          }
-          intersectingPagesRef.current.set(idx, {
-            index: idx,
-            top: entry.boundingClientRect.top - (entry.rootBounds?.top || 0),
-          });
+          if (!entry.isIntersecting) return;
 
           if (useLazy) {
             setLoadedSet((prev) => {
@@ -281,9 +347,6 @@ export default function ReaderView({
             preloadNextChapter();
           }
         });
-        setVisibleIndex(getVisiblePageIndex(
-          [...intersectingPagesRef.current.values()], visibleIndexRef.current,
-        ));
       },
       { root: containerRef.current, rootMargin: "500px 0px", threshold: 0 },
     );
@@ -330,11 +393,46 @@ export default function ReaderView({
     const container = containerRef.current;
     if (!container) return;
 
-    if (progressKey) {
+    const now = performance.now();
+    if (
+      autoScrollRef.current &&
+      !isAutoScrollScrollEvent(
+        container.scrollTop,
+        autoScrollMarkerRef.current,
+        now,
+      )
+    ) {
+      pauseAutoScroll();
+    }
+
+    const rootRect = container.getBoundingClientRect();
+    const pageRects = pageRefs.current.flatMap((element, index) => {
+      if (!element) return [];
+      const rect = element.getBoundingClientRect();
+      return [{ index, top: rect.top, bottom: rect.bottom }];
+    });
+    const viewportBottom = rootRect.top + container.clientHeight;
+    const hasVisiblePage = pageRects.some(
+      (rect) => rect.bottom > rootRect.top && rect.top < viewportBottom,
+    );
+    const nextVisibleIndex = hasVisiblePage
+      ? getVisiblePageIndexFromRects(
+        pageRects,
+        rootRect.top,
+        viewportBottom,
+        visibleIndexRef.current,
+      )
+      : getPageIndexAtOffset(container.scrollTop, pageHeights, pages.length);
+    if (nextVisibleIndex !== visibleIndexRef.current) {
+      visibleIndexRef.current = nextVisibleIndex;
+      setVisibleIndex(nextVisibleIndex);
+    }
+
+    if (progressKey && !chapterChangingRef.current) {
       progressDebouncerRef.current.schedule({
         seriesTitle: series.title,
         chapterNumber: chapter.number,
-        pageIndex: visibleIndex,
+        pageIndex: nextVisibleIndex,
         totalPages: pages.length,
       });
     }
@@ -346,7 +444,7 @@ export default function ReaderView({
       if (prev && distFromBottom > 180) return false;
       return prev;
     });
-  }, [progressKey, series, chapter, pages.length, visibleIndex]);
+  }, [progressKey, series, chapter, pages.length, pageHeights]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -354,6 +452,26 @@ export default function ReaderView({
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function pauseFromInput(event) {
+      // Ctrl+wheel is reserved for pinch-to-zoom and is handled below.
+      if (event.type === "wheel" && event.ctrlKey) return;
+      pauseAutoScroll();
+    }
+
+    container.addEventListener("wheel", pauseFromInput, { passive: true });
+    container.addEventListener("pointerdown", pauseFromInput, { passive: true });
+    container.addEventListener("touchstart", pauseFromInput, { passive: true });
+    return () => {
+      container.removeEventListener("wheel", pauseFromInput);
+      container.removeEventListener("pointerdown", pauseFromInput);
+      container.removeEventListener("touchstart", pauseFromInput);
+    };
+  }, []);
 
   // Pinch-to-zoom via trackpad: wheel events with ctrlKey are fired by the OS
   // for pinch gestures. We intercept them and drive our zoom state instead of
@@ -406,17 +524,24 @@ export default function ReaderView({
       if (key === "=" || key === "+") { e.preventDefault(); zoomIn();    return; }
       if (key === "-")                 { e.preventDefault(); zoomOut();   return; }
       if (key === "0")                 { e.preventDefault(); zoomReset(); return; }
+      if (key === "a") {
+        e.preventDefault();
+        setAutoScroll((enabled) => !enabled);
+        return;
+      }
 
       const container = containerRef.current;
       if (!container) return;
       if (key === "arrowdown" || key === "arrowright") {
         e.preventDefault();
+        pauseAutoScroll();
         container.scrollBy({
           top: window.innerHeight * 0.85,
           behavior: "smooth",
         });
       } else if (key === "arrowup" || key === "arrowleft") {
         e.preventDefault();
+        pauseAutoScroll();
         container.scrollBy({
           top: -window.innerHeight * 0.85,
           behavior: "smooth",
@@ -463,6 +588,7 @@ export default function ReaderView({
         </button>
         <div className="reader-chapter-nav">
           <button
+            id="btn-prev-chapter"
             className="btn btn-ghost icon-btn"
             title="Previous chapter (P)"
             disabled={!hasPrev}
@@ -481,6 +607,7 @@ export default function ReaderView({
             {series.title} · Chapter {chapter.number}
           </span>
           <button
+            id="btn-next-chapter"
             className="btn btn-ghost icon-btn"
             title="Next chapter (N)"
             disabled={!hasNext}
@@ -500,8 +627,45 @@ export default function ReaderView({
           <span>
             {pages.length > 0 ? `${visibleIndex + 1} / ${pages.length}` : ""}
           </span>
-          {/* Zoom controls */}
-          <div className="reader-zoom-controls" aria-label="Zoom controls">
+          {/* Reader controls */}
+            <div className="reader-auto-scroll-controls" aria-label="Auto-scroll controls">
+              <button
+                id="auto-scroll-btn"
+                className="btn btn-ghost reader-tool-btn"
+                title="Toggle auto-scroll (A)"
+                aria-label={autoScroll ? "Pause auto-scroll" : "Start auto-scroll"}
+                aria-pressed={autoScroll}
+                onClick={() => setAutoScroll((enabled) => !enabled)}
+              >
+                {autoScroll ? (
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="5" width="4" height="14" rx="1" />
+                    <rect x="14" y="5" width="4" height="14" rx="1" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8 5.5v13l10-6.5-10-6.5Z" />
+                  </svg>
+                )}
+              </button>
+              <label className="reader-auto-scroll-speed" title="Auto-scroll speed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path d="M4.5 16a8 8 0 1 1 15 0" />
+                  <path d="m12 12 4-4M6 19h12" />
+                </svg>
+                <select
+                  id="auto-scroll-speed"
+                  aria-label="Auto-scroll speed"
+                  value={autoScrollSpeed}
+                  onChange={(event) => setAutoScrollSpeed(Number(event.target.value))}
+                >
+                  <option value="1">1×</option>
+                  <option value="2">2×</option>
+                  <option value="4">4×</option>
+                </select>
+              </label>
+            </div>
+            <div className="reader-zoom-controls" aria-label="Zoom controls">
             <button
               id="zoom-out-btn"
               className="btn btn-ghost icon-btn reader-zoom-btn"
@@ -509,7 +673,10 @@ export default function ReaderView({
               disabled={zoomLocked || zoom <= ZOOM_MIN}
               onClick={zoomOut}
             >
-              −
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="6" />
+                <path d="m16 16 4 4M8 11h6" />
+              </svg>
             </button>
             <button
               id="zoom-reset-btn"
@@ -527,7 +694,10 @@ export default function ReaderView({
               disabled={zoomLocked || zoom >= ZOOM_MAX}
               onClick={zoomIn}
             >
-              +
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="6" />
+                <path d="m16 16 4 4M8 11h6M11 8v6" />
+              </svg>
             </button>
             <button
               id="zoom-lock-btn"
@@ -615,6 +785,7 @@ export default function ReaderView({
           </div>
           <div className="chapter-end-actions">
             <button
+              id="btn-end-prev-chapter"
               className="btn btn-ghost"
               disabled={!hasPrev}
               onClick={() => onNavigateChapter(-1)}
@@ -646,6 +817,7 @@ export default function ReaderView({
               Chapter list
             </button>
             <button
+              id="btn-end-next-chapter"
               className="btn btn-primary"
               disabled={!hasNext}
               onClick={() => onNavigateChapter(1)}

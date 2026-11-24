@@ -4,7 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+- **feat:** Add failed-download review/retry commands, provider discovery, and
+  native Comix parsing with actionable protected-response errors.
+- **feat:** Add reader auto-scroll, a rebuildable library index, release-size and
+  desktop benchmark tooling, and a production Electron reader smoke test.
+- **feat:** Add contributor issue forms, pull-request guidance, security and
+  conduct policies, CODEOWNERS, and protected `main`/`dev` branch workflows.
+- **fix:** Correct repository URLs, development-branch instructions, and stale
+  release documentation.
+
+## v0.5.3
+
+- **fix:** Restore reader image loading by relying on Strip's custom intersection observer instead of native lazy loading inside the scroll container.
 
 ## v0.5.2
 
@@ -18,13 +29,6 @@ _No unreleased changes yet._
 - **ci:** Publish electron-builder update metadata and macOS ZIP payloads, merge architecture manifests, and include updater artifacts in release checksums.
 
 ## v0.5.0
-
-- **fix:** Load the bundled Strip logo from package-relative URLs in the Electron reader, including the sidebar, About view, and favicon.
-- **feat:** Show explicit loading states and non-blocking warnings while library data, reader pages, and downloads are being prepared.
-- **fix:** Preserve the reader position across zoom changes and refine reader zoom-lock and download-tray controls.
-- **fix:** Persist core metadata as UTF-8, tolerate unreadable library metadata, and improve CLI output and failure reporting on Unicode-constrained terminals.
-- **fix:** Persist failed-download details for later recovery without masking the original download error.
-- **fix:** Harden cross-platform release packaging for nested artifacts, Linux ARM64 CLI builds, checksums, and automated changelog updates.
 
 - **fix:** Load the bundled Strip logo from package-relative URLs in the Electron reader, including the sidebar, About view, and favicon.
 - **feat:** Show explicit loading states and non-blocking warnings while library data, reader pages, and downloads are being prepared.
