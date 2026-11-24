@@ -25,6 +25,10 @@ import {
   getReaderContentState,
   resolveReaderStartPage,
 } from "../lib/readerState.mjs";
+import {
+  getNextAutoScrollTop,
+  isAutoScrollScrollEvent,
+} from "../lib/autoScroll.mjs";
 import { markPerf } from "../lib/perfMarks.mjs";
 import LoadingIndicator from "../components/LoadingIndicator.jsx";
 
@@ -102,6 +106,14 @@ export default function ReaderView({
   const zoomLockedRef = useRef(zoomLocked);
   zoomLockedRef.current = zoomLocked;
   const zoomAnchorRef = useRef(null);
+  const autoScrollRef = useRef(autoScroll);
+  autoScrollRef.current = autoScroll;
+  const autoScrollMarkerRef = useRef(null);
+
+  function pauseAutoScroll() {
+    autoScrollMarkerRef.current = null;
+    if (autoScrollRef.current) setAutoScroll(false);
+  }
 
   function captureZoomAnchor() {
     const container = containerRef.current;
@@ -172,13 +184,28 @@ export default function ReaderView({
       const container = containerRef.current;
       if (!container) return;
       if (previous === null) previous = now;
-      const elapsed = Math.min(now - previous, 50);
+      const elapsed = Math.min(now - previous, 64);
       previous = now;
-      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
+      const { nextTop, atEnd } = getNextAutoScrollTop({
+        scrollTop: container.scrollTop,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        speed: autoScrollSpeed,
+        elapsedMs: elapsed,
+      });
+      if (atEnd && nextTop <= container.scrollTop) {
         setAutoScroll(false);
         return;
       }
-      container.scrollTop += autoScrollSpeed * (elapsed / 16.67);
+      autoScrollMarkerRef.current = {
+        top: nextTop,
+        expiresAt: performance.now() + 120,
+      };
+      container.scrollTop = nextTop;
+      if (atEnd) {
+        setAutoScroll(false);
+        return;
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -366,6 +393,18 @@ export default function ReaderView({
     const container = containerRef.current;
     if (!container) return;
 
+    const now = performance.now();
+    if (
+      autoScrollRef.current &&
+      !isAutoScrollScrollEvent(
+        container.scrollTop,
+        autoScrollMarkerRef.current,
+        now,
+      )
+    ) {
+      pauseAutoScroll();
+    }
+
     const rootRect = container.getBoundingClientRect();
     const pageRects = pageRefs.current.flatMap((element, index) => {
       if (!element) return [];
@@ -413,6 +452,26 @@ export default function ReaderView({
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function pauseFromInput(event) {
+      // Ctrl+wheel is reserved for pinch-to-zoom and is handled below.
+      if (event.type === "wheel" && event.ctrlKey) return;
+      pauseAutoScroll();
+    }
+
+    container.addEventListener("wheel", pauseFromInput, { passive: true });
+    container.addEventListener("pointerdown", pauseFromInput, { passive: true });
+    container.addEventListener("touchstart", pauseFromInput, { passive: true });
+    return () => {
+      container.removeEventListener("wheel", pauseFromInput);
+      container.removeEventListener("pointerdown", pauseFromInput);
+      container.removeEventListener("touchstart", pauseFromInput);
+    };
+  }, []);
 
   // Pinch-to-zoom via trackpad: wheel events with ctrlKey are fired by the OS
   // for pinch gestures. We intercept them and drive our zoom state instead of
@@ -475,12 +534,14 @@ export default function ReaderView({
       if (!container) return;
       if (key === "arrowdown" || key === "arrowright") {
         e.preventDefault();
+        pauseAutoScroll();
         container.scrollBy({
           top: window.innerHeight * 0.85,
           behavior: "smooth",
         });
       } else if (key === "arrowup" || key === "arrowleft") {
         e.preventDefault();
+        pauseAutoScroll();
         container.scrollBy({
           top: -window.innerHeight * 0.85,
           behavior: "smooth",
@@ -566,29 +627,45 @@ export default function ReaderView({
           <span>
             {pages.length > 0 ? `${visibleIndex + 1} / ${pages.length}` : ""}
           </span>
-          {/* Zoom controls */}
-          <div className="reader-zoom-controls" aria-label="Zoom controls">
-            <button
-              id="auto-scroll-btn"
-              className="btn btn-ghost reader-zoom-btn"
-              title="Toggle auto-scroll (A)"
-              aria-label={autoScroll ? "Pause auto-scroll" : "Start auto-scroll"}
-              aria-pressed={autoScroll}
-              onClick={() => setAutoScroll((enabled) => !enabled)}
-            >
-              {autoScroll ? "Pause" : "Auto"}
-            </button>
-            <select
-              id="auto-scroll-speed"
-              className="select reader-auto-scroll-speed"
-              aria-label="Auto-scroll speed"
-              value={autoScrollSpeed}
-              onChange={(event) => setAutoScrollSpeed(Number(event.target.value))}
-            >
-              <option value="1">1×</option>
-              <option value="2">2×</option>
-              <option value="4">4×</option>
-            </select>
+          {/* Reader controls */}
+            <div className="reader-auto-scroll-controls" aria-label="Auto-scroll controls">
+              <button
+                id="auto-scroll-btn"
+                className="btn btn-ghost reader-tool-btn"
+                title="Toggle auto-scroll (A)"
+                aria-label={autoScroll ? "Pause auto-scroll" : "Start auto-scroll"}
+                aria-pressed={autoScroll}
+                onClick={() => setAutoScroll((enabled) => !enabled)}
+              >
+                {autoScroll ? (
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="5" width="4" height="14" rx="1" />
+                    <rect x="14" y="5" width="4" height="14" rx="1" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8 5.5v13l10-6.5-10-6.5Z" />
+                  </svg>
+                )}
+              </button>
+              <label className="reader-auto-scroll-speed" title="Auto-scroll speed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path d="M4.5 16a8 8 0 1 1 15 0" />
+                  <path d="m12 12 4-4M6 19h12" />
+                </svg>
+                <select
+                  id="auto-scroll-speed"
+                  aria-label="Auto-scroll speed"
+                  value={autoScrollSpeed}
+                  onChange={(event) => setAutoScrollSpeed(Number(event.target.value))}
+                >
+                  <option value="1">1×</option>
+                  <option value="2">2×</option>
+                  <option value="4">4×</option>
+                </select>
+              </label>
+            </div>
+            <div className="reader-zoom-controls" aria-label="Zoom controls">
             <button
               id="zoom-out-btn"
               className="btn btn-ghost icon-btn reader-zoom-btn"
@@ -596,7 +673,10 @@ export default function ReaderView({
               disabled={zoomLocked || zoom <= ZOOM_MIN}
               onClick={zoomOut}
             >
-              −
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="6" />
+                <path d="m16 16 4 4M8 11h6" />
+              </svg>
             </button>
             <button
               id="zoom-reset-btn"
@@ -614,7 +694,10 @@ export default function ReaderView({
               disabled={zoomLocked || zoom >= ZOOM_MAX}
               onClick={zoomIn}
             >
-              +
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="6" />
+                <path d="m16 16 4 4M8 11h6M11 8v6" />
+              </svg>
             </button>
             <button
               id="zoom-lock-btn"
