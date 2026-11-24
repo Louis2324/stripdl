@@ -4,12 +4,13 @@
     "name": "ZLouisMiguel",
     "email": "stripdl@users.noreply.github.com"
   },
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Webtoon reader powered by strip",
   "homepage": "https://github.com/Louis2324/stripdl",
   "main": "out/main/index.js",
   "scripts": {
-    "test": "node --test",
+    "test": "node scripts/run-tests.cjs",
+    "test:e2e": "npm run build && electron test/e2e/reader-smoke.cjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
