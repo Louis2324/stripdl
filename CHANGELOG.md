@@ -13,6 +13,12 @@ All notable changes to this project are documented here.
 - **fix:** Correct repository URLs, development-branch instructions, and stale
   release documentation.
 
+## v0.5.4
+
+- **feat:** Add icon-based auto-scroll controls with speed selection and pause-on-user-input behavior.
+- **fix:** Preserve accurate reader progress during fast scrolling and chapter changes, including reliable restored-page image loading.
+- **ui:** Clarify last-chapter disabled navigation and improve library card continue/reading details.
+
 ## v0.5.3
 
 - **fix:** Restore reader image loading by relying on Strip's custom intersection observer instead of native lazy loading inside the scroll container.
